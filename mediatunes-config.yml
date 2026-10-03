@@ -1,0 +1,68 @@
+version: 1
+mediascanDatabaseFilePath: sqlite:///mediascan.db
+albumCoversPath: /var/www/html/Covers/
+ageVerification: true
+limitBandwidth: true
+maxResults: 50000
+maxResultsAlbumCovers: 500
+serverConfig:
+  host: 0.0.0.0
+  port: 5000
+  debug: true
+  useDebugger: false
+  useReloader: false
+  staticUrlPath: /static
+  urlPrefix: /api
+playbackMethods:
+  local:
+    enabled: true
+    mediaPath: /data/
+  webSearch:
+  - name: Google
+    enabled: true
+    searchQueryURLFormat: "https://google.com/search?q={artist}%20{album}%20{title}"
+  - name: YouTube
+    enabled: true
+    searchQueryURLFormat: "https://www.youtube.com/results?search_query={artist}%20{album}%20{title}%20official%20music%20video"
+  - name: YouTube Music
+    enabled: true
+    searchQueryURLFormat: "https://music.youtube.com/search?q={artist}%20{album}%20{title}"
+  - name: Apple Music
+    enabled: true
+    searchQueryURLFormat: "https://music.apple.com/us/search?term={artist}%20{album}%20{title}"
+  - name: Amazon Music
+    enabled: true
+    searchQueryURLFormat: "https://music.amazon.com/search/{artist}%20{album}%20{title}"
+  - name: Spotify Desktop
+    enabled: true
+    searchQueryURLFormat: "https://play.spotify.com/search/{artist}%20{album}%20{title}"
+  - name: Spotify Mobile App
+    enabled: true
+    searchQueryURLFormat: "https://google.com/search?q=Spotify:search/{artist}%20{album}%20{title}"
+  - name: Tidal Desktop
+    enabled: true
+    searchQueryURLFormat: "https://tidal.com/search?q={artist}%20{album}%20{title}"
+  - name: Tidal Mobile App
+    enabled: true
+    searchQueryURLFormat: "https://google.com/search?q=Tidal:search/{artist}%20{album}%20{title}"
+  - name: Deezer
+    enabled: true
+    searchQueryURLFormat: "https://deezer.com/search/{artist}%20{album}%20{title}"
+  - name: Discogs
+    enabled: true
+    searchQueryURLFormat: "https://www.discogs.com/search?q={artist}%20{album}%20{title}&type=all"
+  - name: MusicBrainz
+    enabled: true
+    searchQueryURLFormat: "https://musicbrainz.org/search?query={artist}%20{album}%20{title}&type=all"
+  - name: Last.fm
+    enabled: true
+    searchQueryURLFormat: "https://www.last.fm/search?q={artist}%20{album}%20{title}"
+  - name: Bandcamp
+    enabled: true
+    searchQueryURLFormat: "https://bandcamp.com/search?q={artist}%20{album}%20{title}"
+  - name: SoundCloud
+    enabled: true
+    searchQueryURLFormat: "https://soundcloud.com/search?q={artist}%20{album}%20{title}"
+  - name: Wikipedia
+    enabled: true
+    searchQueryURLFormat: "https://en.wikipedia.org/w/index.php?search={artist}%20{album}%20{title}"
