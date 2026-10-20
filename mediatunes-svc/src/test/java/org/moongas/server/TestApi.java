@@ -98,8 +98,32 @@ public class TestApi {
                 assertEquals(200, resp.code());
                 JsonNode data = json(resp);
                 assertEquals(1, data.get("albums").size());
-                assertEquals("Album", data.get("albums").get(0).get("album").asText());
-                assertEquals(2000, data.get("albums").get(0).get("year").asInt());
+                assertEquals("Album Metadata Name", data.get("albums").get(0).get("album").asText());
+                assertEquals(2001, data.get("albums").get(0).get("year").asInt());
+            }
+        });
+    }
+
+    @Test
+    void Test_api_album() {
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            try (Response resp = client.get("/api/album?artist=Artist%20One&album=Album&year=2000")) {
+                assertEquals(200, resp.code());
+                JsonNode album = json(resp).get("album");
+                assertEquals(1, album.get("id").asInt());
+                assertEquals("/data/Music/A/Artist One/Album [2000]", album.get("path").asText());
+                assertEquals("Album Metadata Name", album.get("name").asText());
+                assertEquals(2001, album.get("year").asInt());
+                assertTrue(album.get("explicitCover").asBoolean());
+            }
+        });
+    }
+
+    @Test
+    void Test_api_album_not_found() {
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            try (Response resp = client.get("/api/album?album=Missing")) {
+                assertEquals(404, resp.code());
             }
         });
     }

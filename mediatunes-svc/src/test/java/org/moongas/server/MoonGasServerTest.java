@@ -14,7 +14,7 @@ class MoonGasServerTest {
 
     private static FilterArgs argsWithGenre(List<String> genres) {
         return new FilterArgs(genres, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 
     private static boolean genreMatches(String genre, List<String> filter) {

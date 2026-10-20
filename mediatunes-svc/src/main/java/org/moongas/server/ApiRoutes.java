@@ -57,8 +57,7 @@ public class ApiRoutes {
 
         app.get(p + "/albums", ctx -> {
             FilterArgs args = FilterArgs.from(ctx);
-            List<MediaFilesDbConnection.MediaFileRow> files = db.filterFiles(args);
-            List<AlbumInfo> albums = getAlbums(files, args);
+            List<AlbumInfo> albums = getAlbums(db.filterAlbums(args), args);
             List<Map<String, Object>> albumsJson = new ArrayList<>();
             for (AlbumInfo album : albums) {
                 albumsJson.add(Map.of(
@@ -68,6 +67,29 @@ public class ApiRoutes {
                         "coverPath", album.coverPath()));
             }
             ctx.json(Map.of("albums", albumsJson));
+        });
+
+        app.get(p + "/album", ctx -> {
+            FilterArgs args = FilterArgs.from(ctx);
+            List<String> albumPaths = db.filterFiles(args).stream()
+                    .map(MediaFilesDbConnection.MediaFileRow::albumPath)
+                    .toList();
+            MediaFilesDbConnection.AlbumRow found = null;
+            for (MediaFilesDbConnection.AlbumRow album : db.getAlbums()) {
+                if (albumPaths.contains(album.path())) {
+                    found = album;
+                    break;
+                }
+            }
+            if (found == null) {
+                throw new NotFoundResponse();
+            }
+            ctx.json(Map.of("album", Map.of(
+                    "id", found.id(),
+                    "path", found.path(),
+                    "name", found.name(),
+                    "year", found.year(),
+                    "explicitCover", found.explicitCover())));
         });
 
         app.get(p + "/tracks", ctx -> {
@@ -208,15 +230,12 @@ public class ApiRoutes {
         });
     }
 
-    private List<AlbumInfo> getAlbums(List<MediaFilesDbConnection.MediaFileRow> files, FilterArgs args) {
+    private List<AlbumInfo> getAlbums(List<MediaFilesDbConnection.AlbumRow> albums, FilterArgs args) {
         Map<String, AlbumInfo> albumSet = new LinkedHashMap<>();
-        for (MediaFilesDbConnection.MediaFileRow row : files) {
-            // go with albumartist first to better group files in the same album
-            // together, but fall back to artist as key if albumartist is not set
+        for (MediaFilesDbConnection.AlbumRow row : albums) {
             String artist = row.albumartist().isEmpty() ? row.artist() : row.albumartist();
-            String coverPath = db.getCoverPath(row.path());
-            String key = artist + " " + row.album() + " " + row.year() + " " + coverPath;
-            albumSet.putIfAbsent(key, new AlbumInfo(artist, row.album(), row.year(), coverPath));
+            String coverPath = db.getAlbumCoverPath(row.path());
+            albumSet.putIfAbsent(row.path(), new AlbumInfo(artist, row.name(), row.year(), coverPath));
         }
         List<AlbumInfo> ret = new ArrayList<>(albumSet.values());
         String sort = args.sort() == null ? "random" : args.sort();

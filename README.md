@@ -47,6 +47,34 @@ Configuration is loaded from a YAML file passed as the first command line
 argument (or from the `MEDIATUNES_CONFIG` environment variable). See
 [mediatunes-config.yml](mediatunes-config.yml) for the available options.
 
+## Album queries
+
+`GET /api/albums` reads names, years and cover directories directly from the
+`album` table. Related tracks and artists are left-joined to support filters
+for `artist`, `albumartist`, `title`, `genre`, `countryCode`, `regionCode`,
+`city` and `languageCode`. Combined track/artist filters must match the same
+related track. Results contain one entry per album path, including albums
+without tracks when no track/artist filter excludes them.
+
+The `album`, `year`, `minYear` and `maxYear` filters on this endpoint use album
+metadata, not track tags. List filters are repeatable, also accept `[]` suffixes,
+and match case-insensitively. For example:
+
+```text
+/api/albums?countryCode=US&genre=Rock&explicitCover=false&sort=year
+```
+
+`explicitCover` is an optional scalar boolean accepting `true`, `false`, `1`
+or `0` (case-insensitive). Invalid or blank values return HTTP 400. It also
+filters `/api/tracks`, `/api/random-track`, `/api/artists` and `/api/album`
+through the track's album path.
+
+Like the Python service, `GET /api/album` selects the first album whose tracks
+match the filters; its `album` and year filters still refer to track tags.
+It returns `id`, `path`, `name`, `year` and boolean `explicitCover`.
+If the database lacks an `album` table, `/api/albums` returns an empty list,
+`/api/album` returns HTTP 404, and track queries without `explicitCover` still work.
+
 ## Running
 
 ```

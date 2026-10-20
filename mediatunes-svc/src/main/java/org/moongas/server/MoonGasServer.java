@@ -111,6 +111,7 @@ public class MoonGasServer {
         }
 
         DbConnection conn = new DbConnection(dbPath);
+        logger.info("Loading mediascan database from '{}'.", dbPath);
         MediaFilesDbConnection mediaFilesDb;
         try {
             mediaFilesDb = new MediaFilesDbConnection(conn, config);

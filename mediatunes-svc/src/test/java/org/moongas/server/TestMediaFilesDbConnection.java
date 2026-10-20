@@ -39,7 +39,7 @@ public class TestMediaFilesDbConnection {
         DbConnection conn = new DbConnection(dbUrl);
         MediaFilesDbConnection md = new MediaFilesDbConnection(conn, new MediatunesServiceConfig());
         FilterArgs args = new FilterArgs(null, null, List.of("Siouxsie And The Banshees"),
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null);
         List<MediaFileRow> results = md.filterFiles(args);
         assertEquals(44, results.size());
         conn.close();
