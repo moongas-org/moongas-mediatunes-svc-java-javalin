@@ -56,13 +56,22 @@ for `artist`, `albumartist`, `title`, `genre`, `countryCode`, `regionCode`,
 related track. Results contain one entry per album path, including albums
 without tracks when no track/artist filter excludes them.
 
+Each entry includes `artist`, `album`, `year`, `coverPath` and boolean
+`explicitCover`. The explicit-cover flag comes from the album's metadata.
+
 The `album`, `year`, `minYear` and `maxYear` filters on this endpoint use album
 metadata, not track tags. List filters are repeatable, also accept `[]` suffixes,
-and match case-insensitively. For example:
+and match case-insensitive substrings. For example:
 
 ```text
 /api/albums?countryCode=US&genre=Rock&explicitCover=false&sort=year
 ```
+
+String list filters (`artist`, `albumartist`, `album`, `title`, `genre`, `year`,
+`countryCode`, `regionCode`, `city` and `languageCode`) use this matching
+throughout the API. Repeated values match any value, so
+`artist=wu-tang&artist=dr.+dre` matches "Wu-Tang Clan". Different filter fields
+must all match. For an exact year, use the same `minYear` and `maxYear` value.
 
 `explicitCover` is an optional scalar boolean accepting `true`, `false`, `1`
 or `0` (case-insensitive). Invalid or blank values return HTTP 400. It also

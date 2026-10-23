@@ -5,6 +5,7 @@
 package org.moongas.server;
 
 import java.util.List;
+import java.util.Locale;
 
 import io.javalin.http.BadRequestResponse;
 import io.javalin.http.Context;
@@ -12,8 +13,8 @@ import io.javalin.http.Context;
 /**
  * Filter query arguments, parsed like the Python get_request_args().
  * List-type args are repeatable and also accept the "[]" suffix
- * (e.g. ?genre=Rock&amp;genre=Pop or ?genre[]=Rock); matching is exact,
- * case-insensitive. Scalar args are minYear, maxYear, sort and explicitCover.
+ * (e.g. ?genre=Rock&amp;genre=Pop or ?genre[]=Rock); values match
+ * case-insensitive substrings. Scalar args are minYear, maxYear, sort and explicitCover.
  */
 public record FilterArgs(
         List<String> genre,
@@ -88,12 +89,16 @@ public record FilterArgs(
         return album != null || artist != null || albumartist != null;
     }
 
-    private static boolean notInListIgnoreCase(String value, List<String> allowed) {
+    private static boolean lacksAnySubstringIgnoreCase(String value, List<String> allowed) {
         if (allowed == null || allowed.isEmpty()) {
             return false;
         }
+        if (value == null) {
+            return true;
+        }
+        String lowerValue = value.toLowerCase(Locale.ROOT);
         for (String item : allowed) {
-            if (value != null && value.equalsIgnoreCase(item)) {
+            if (lowerValue.contains(item.toLowerCase(Locale.ROOT))) {
                 return false;
             }
         }
@@ -108,24 +113,24 @@ public record FilterArgs(
         if (maxYear != null && rowYear > maxYear) {
             return false;
         }
-        return !(notInListIgnoreCase(row.artist(), artist)
-                || notInListIgnoreCase(row.albumartist(), albumartist)
-                || notInListIgnoreCase(row.album(), album)
-                || notInListIgnoreCase(row.genre(), genre)
-                || notInListIgnoreCase(row.title(), title)
-                || notInListIgnoreCase(row.yearStr(), year)
-                || notInListIgnoreCase(row.countryCode(), countryCode)
-                || notInListIgnoreCase(row.regionCode(), regionCode)
-                || notInListIgnoreCase(row.city(), city)
-                || notInListIgnoreCase(row.languageCode(), languageCode));
+        return !(lacksAnySubstringIgnoreCase(row.artist(), artist)
+                || lacksAnySubstringIgnoreCase(row.albumartist(), albumartist)
+                || lacksAnySubstringIgnoreCase(row.album(), album)
+                || lacksAnySubstringIgnoreCase(row.genre(), genre)
+                || lacksAnySubstringIgnoreCase(row.title(), title)
+                || lacksAnySubstringIgnoreCase(row.yearStr(), year)
+                || lacksAnySubstringIgnoreCase(row.countryCode(), countryCode)
+                || lacksAnySubstringIgnoreCase(row.regionCode(), regionCode)
+                || lacksAnySubstringIgnoreCase(row.city(), city)
+                || lacksAnySubstringIgnoreCase(row.languageCode(), languageCode));
     }
 
     public boolean matchesArtist(MediaFilesDbConnection.ArtistRow row) {
-        return !(notInListIgnoreCase(row.name(), artist)
-                || notInListIgnoreCase(row.countryCode(), countryCode)
-                || notInListIgnoreCase(row.regionCode(), regionCode)
-                || notInListIgnoreCase(row.city(), city)
-                || notInListIgnoreCase(row.languageCode(), languageCode));
+        return !(lacksAnySubstringIgnoreCase(row.name(), artist)
+                || lacksAnySubstringIgnoreCase(row.countryCode(), countryCode)
+                || lacksAnySubstringIgnoreCase(row.regionCode(), regionCode)
+                || lacksAnySubstringIgnoreCase(row.city(), city)
+                || lacksAnySubstringIgnoreCase(row.languageCode(), languageCode));
     }
 
     public boolean matchesAlbum(MediaFilesDbConnection.AlbumRow row) {
@@ -134,15 +139,15 @@ public record FilterArgs(
                 || explicitCover != null && explicitCover != row.explicitCover()) {
             return false;
         }
-        return !(notInListIgnoreCase(row.name(), album)
-                || notInListIgnoreCase(Integer.toString(row.year()), year)
-                || notInListIgnoreCase(row.artist(), artist)
-                || notInListIgnoreCase(row.albumartist(), albumartist)
-                || notInListIgnoreCase(row.title(), title)
-                || notInListIgnoreCase(row.genre(), genre)
-                || notInListIgnoreCase(row.countryCode(), countryCode)
-                || notInListIgnoreCase(row.regionCode(), regionCode)
-                || notInListIgnoreCase(row.city(), city)
-                || notInListIgnoreCase(row.languageCode(), languageCode));
+        return !(lacksAnySubstringIgnoreCase(row.name(), album)
+                || lacksAnySubstringIgnoreCase(Integer.toString(row.year()), year)
+                || lacksAnySubstringIgnoreCase(row.artist(), artist)
+                || lacksAnySubstringIgnoreCase(row.albumartist(), albumartist)
+                || lacksAnySubstringIgnoreCase(row.title(), title)
+                || lacksAnySubstringIgnoreCase(row.genre(), genre)
+                || lacksAnySubstringIgnoreCase(row.countryCode(), countryCode)
+                || lacksAnySubstringIgnoreCase(row.regionCode(), regionCode)
+                || lacksAnySubstringIgnoreCase(row.city(), city)
+                || lacksAnySubstringIgnoreCase(row.languageCode(), languageCode));
     }
 }

@@ -92,6 +92,84 @@ public class TestApi {
     }
 
     @Test
+    void matchesSubstringsAcrossTrackAndAlbumEndpoints() {
+        List<String> matchingQueries = List.of(
+                "artist=missing&artist=oNE",
+                "albumartist[]=missing&albumartist[]=aRT",
+                "album=lB", "title=aCK", "genre=oC", "year=00",
+                "countryCode=u", "regionCode=-a", "city=VILLE", "languageCode=N",
+                "artist=one&genre=oc&year=00&explicitCover=true",
+                "artist=", "artist=Artist%20One");
+        List<String> nonMatchingQueries = List.of(
+                "artist=missing&artist=nobody",
+                "artist=Artist%20One%20Extra",
+                "artist=one&genre=jazz",
+                "year=00&minYear=2002",
+                "year=00&maxYear=1999",
+                "artist=one&explicitCover=false");
+        Map<String, String> endpoints = Map.of(
+                "tracks", "files", "albums", "albums", "artists", "artists",
+                "album", "album", "random-track", "title");
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (var endpoint : endpoints.entrySet()) {
+                for (String query : matchingQueries) {
+                    String url = "/api/" + endpoint.getKey() + "?" + query;
+                    try (Response response = client.get(url)) {
+                        assertEquals(200, response.code(), url);
+                        JsonNode result = json(response).get(endpoint.getValue());
+                        assertNotNull(result, url);
+                        if (result.isArray()) {
+                            assertEquals(1, result.size(), url);
+                        }
+                    }
+                }
+                for (String query : nonMatchingQueries) {
+                    String url = "/api/" + endpoint.getKey() + "?" + query;
+                    try (Response response = client.get(url)) {
+                        if (List.of("album", "random-track").contains(endpoint.getKey())) {
+                            assertEquals(404, response.code(), url);
+                        } else {
+                            assertEquals(200, response.code(), url);
+                            assertEquals(0, json(response).get(endpoint.getValue()).size(), url);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    @Test
+    void matchesArtistAndWordcloudSubstrings() {
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (String query : List.of(
+                    "artist=missing&artist=oNE",
+                    "artist[]=missing&artist[]=aRT",
+                    "countryCode=u", "regionCode=-a", "city=VILLE", "languageCode=N",
+                    "artist=one&countryCode=u&regionCode=-a&city=VILLE&languageCode=N",
+                    "artist=")) {
+                try (Response response = client.get("/api/artist?" + query)) {
+                    assertEquals(200, response.code(), query);
+                    assertEquals("Artist One", json(response).get("artist").get("name").asText(), query);
+                }
+                try (Response response = client.get("/api/wordcloud/artists?" + query)) {
+                    assertEquals(200, response.code(), query);
+                    assertEquals(1, json(response).get("words").size(), query);
+                }
+            }
+            for (String query : List.of("artist=missing&artist=nobody",
+                    "artist=Artist%20One%20Extra", "artist=one&city=Toronto")) {
+                try (Response response = client.get("/api/artist?" + query)) {
+                    assertEquals(404, response.code(), query);
+                }
+                try (Response response = client.get("/api/wordcloud/artists?" + query)) {
+                    assertEquals(200, response.code(), query);
+                    assertEquals(0, json(response).get("words").size(), query);
+                }
+            }
+        });
+    }
+
+    @Test
     void Test_api_albums() {
         JavalinTest.test(app.javalin(), (server, client) -> {
             try (Response resp = client.get("/api/albums")) {
@@ -100,6 +178,9 @@ public class TestApi {
                 assertEquals(1, data.get("albums").size());
                 assertEquals("Album Metadata Name", data.get("albums").get(0).get("album").asText());
                 assertEquals(2001, data.get("albums").get(0).get("year").asInt());
+                JsonNode explicitCover = data.get("albums").get(0).get("explicitCover");
+                assertTrue(explicitCover.isBoolean());
+                assertTrue(explicitCover.asBoolean());
             }
         });
     }

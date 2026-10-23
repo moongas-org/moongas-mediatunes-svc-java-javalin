@@ -64,7 +64,8 @@ public class ApiRoutes {
                         "artist", album.artist(),
                         "album", album.album(),
                         "year", album.year(),
-                        "coverPath", album.coverPath()));
+                        "coverPath", album.coverPath(),
+                        "explicitCover", album.explicitCover()));
             }
             ctx.json(Map.of("albums", albumsJson));
         });
@@ -235,7 +236,8 @@ public class ApiRoutes {
         for (MediaFilesDbConnection.AlbumRow row : albums) {
             String artist = row.albumartist().isEmpty() ? row.artist() : row.albumartist();
             String coverPath = db.getAlbumCoverPath(row.path());
-            albumSet.putIfAbsent(row.path(), new AlbumInfo(artist, row.name(), row.year(), coverPath));
+            albumSet.putIfAbsent(row.path(),
+                    new AlbumInfo(artist, row.name(), row.year(), coverPath, row.explicitCover()));
         }
         List<AlbumInfo> ret = new ArrayList<>(albumSet.values());
         String sort = args.sort() == null ? "random" : args.sort();

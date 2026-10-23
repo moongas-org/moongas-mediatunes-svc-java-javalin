@@ -81,7 +81,9 @@ class TestAlbumApi {
                 Map.entry("explicitCover=FALSE", 0),
                 Map.entry("explicitCover=0", 0),
                 Map.entry("album[]=album%20metadata%20name&year[]=2001", 1),
-                Map.entry("album=Album", 0),
+                Map.entry("album=Album", 1),
+                Map.entry("album=metadata", 1),
+                Map.entry("album=Missing", 0),
                 Map.entry("year=2000", 0),
                 Map.entry("minYear=2001&maxYear=2001", 1),
                 Map.entry("minYear=2002", 0),
@@ -90,6 +92,7 @@ class TestAlbumApi {
                 Map.entry("countryCode=us&regionCode=us-al&city=huntsville&languageCode=EN", 1),
                 Map.entry("genre=Jazz", 0),
                 Map.entry("artist=Nobody", 0),
+                Map.entry("artist=one&artist=nobody", 1),
                 Map.entry("countryCode=CA", 0),
                 Map.entry("artist=Nobody&genre=Rock&minYear=2000", 0),
                 Map.entry("explicitCover=true&genre=Rock&year=2001", 1),
@@ -101,6 +104,26 @@ class TestAlbumApi {
                     assertEquals(200, response.code(), entry.getKey());
                     assertEquals(entry.getValue().intValue(), json(response).get("albums").size(), entry.getKey());
                 }
+            }
+        });
+    }
+
+    @Test
+    void matchesWuTangAmongRepeatedArtistSubstrings() throws Exception {
+        reload("UPDATE artist SET name = 'Wu-Tang Clan'",
+                "UPDATE mediafile SET artist = 'Wu-Tang Clan', albumartist = 'Wu-Tang Clan'");
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (var endpoint : Map.of("tracks", "files", "albums", "albums",
+                    "artists", "artists", "wordcloud/artists", "words").entrySet()) {
+                try (Response response = client.get(
+                        "/api/" + endpoint.getKey() + "?artist=wu-tang&artist=dr.+dre")) {
+                    assertEquals(200, response.code());
+                    assertEquals(1, json(response).get(endpoint.getValue()).size(), endpoint.getKey());
+                }
+            }
+            try (Response response = client.get("/api/artist?artist=wu-tang&artist=dr.+dre")) {
+                assertEquals(200, response.code());
+                assertEquals("Wu-Tang Clan", json(response).get("artist").get("name").asText());
             }
         });
     }
@@ -128,10 +151,14 @@ class TestAlbumApi {
                 JsonNode albums = json(response).get("albums");
                 assertEquals(3, albums.size());
                 Set<String> covers = new HashSet<>();
+                List<Boolean> explicitCovers = new ArrayList<>();
                 for (JsonNode album : albums) {
                     covers.add(album.get("coverPath").asText());
+                    assertTrue(album.get("explicitCover").isBoolean());
+                    explicitCovers.add(album.get("explicitCover").asBoolean());
                 }
                 assertEquals(3, covers.size());
+                assertEquals(List.of(true, false, false), explicitCovers);
                 assertEquals(2001, albums.get(0).get("year").asInt());
                 assertEquals(2001, albums.get(1).get("year").asInt());
                 assertEquals(1990, albums.get(2).get("year").asInt());
@@ -146,7 +173,14 @@ class TestAlbumApi {
                     "artist=Guest%20Artist&genre=Jazz", 1).entrySet()) {
                 try (Response response = client.get("/api/albums?" + entry.getKey())) {
                     assertEquals(200, response.code());
-                    assertEquals(entry.getValue().intValue(), json(response).get("albums").size(), entry.getKey());
+                    JsonNode albums = json(response).get("albums");
+                    assertEquals(entry.getValue().intValue(), albums.size(), entry.getKey());
+                    if ("explicitCover=false".equals(entry.getKey())) {
+                        for (JsonNode album : albums) {
+                            assertTrue(album.get("explicitCover").isBoolean());
+                            assertEquals(false, album.get("explicitCover").asBoolean());
+                        }
+                    }
                 }
             }
         });
