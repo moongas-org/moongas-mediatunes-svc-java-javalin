@@ -85,18 +85,17 @@ public class ApiRoutes {
             if (found == null) {
                 throw new NotFoundResponse();
             }
-            ctx.json(Map.of("album", Map.of(
-                    "id", found.id(),
-                    "path", found.path(),
-                    "name", found.name(),
-                    "year", found.year(),
-                    "explicitCover", found.explicitCover())));
+            ctx.json(Map.of("album", albumJson(found)));
         });
 
         app.get(p + "/tracks", ctx -> {
             FilterArgs args = FilterArgs.from(ctx);
             List<MediaFilesDbConnection.MediaFileRow> filtered = db.filterFiles(args);
+            MediaFilesDbConnection.AlbumRow album = getSingleAlbum(filtered);
             List<MediaFilesDbConnection.MediaFileRow> tracks = sortTracks(filtered, args);
+            if (config.maxResults > 0 && tracks.size() > config.maxResults) {
+                tracks = tracks.subList(0, config.maxResults);
+            }
             List<MediaFile> files = new ArrayList<>();
             for (MediaFilesDbConnection.MediaFileRow row : tracks) {
                 files.add(row.toMediaFile());
@@ -104,7 +103,11 @@ public class ApiRoutes {
             String coverPath = files.isEmpty()
                     ? ""
                     : db.getCoverPath(files.get(0).path());
-            ctx.json(Map.of("files", files, "coverPath", coverPath));
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("files", files);
+            body.put("coverPath", coverPath);
+            body.put("album", album == null ? null : albumJson(album));
+            ctx.json(body);
         });
 
         app.get(p + "/artists", ctx -> {
@@ -229,6 +232,32 @@ public class ApiRoutes {
             body.put("languageCode", mediaFile.languageCode());
             ctx.json(body);
         });
+    }
+
+    private static Map<String, Object> albumJson(MediaFilesDbConnection.AlbumRow album) {
+        return Map.of(
+                "id", album.id(),
+                "path", album.path(),
+                "name", album.name(),
+                "year", album.year(),
+                "explicitCover", album.explicitCover());
+    }
+
+    private MediaFilesDbConnection.AlbumRow getSingleAlbum(
+            List<MediaFilesDbConnection.MediaFileRow> files) {
+        if (files.isEmpty()) {
+            return null;
+        }
+        String path = files.get(0).albumPath();
+        if (path == null || files.stream().anyMatch(file -> !path.equals(file.albumPath()))) {
+            return null;
+        }
+        for (MediaFilesDbConnection.AlbumRow album : db.getAlbums()) {
+            if (path.equals(album.path())) {
+                return album;
+            }
+        }
+        return null;
     }
 
     private List<AlbumInfo> getAlbums(List<MediaFilesDbConnection.AlbumRow> albums, FilterArgs args) {

@@ -72,6 +72,112 @@ class TestAlbumApi {
     }
 
     @Test
+    void returnsSingleAlbumMetadataOnlyWhenAllMatchingTracksShareItsPath() throws Exception {
+        loadMultipleAlbums();
+        JsonNode first = MAPPER.valueToTree(Map.of(
+                "id", 1, "path", "/data/Music/A/Artist One/Album [2000]",
+                "name", "Album Metadata Name", "year", 2001, "explicitCover", true));
+        JsonNode other = MAPPER.valueToTree(Map.of(
+                "id", 2, "path", "/data/Music/A/Artist One/Other [2000]",
+                "name", "Album Metadata Name", "year", 2001, "explicitCover", false));
+        Map<String, JsonNode> cases = Map.of(
+                "", MAPPER.nullNode(),
+                "genre=Jazz", MAPPER.nullNode(),
+                "album=Album", first,
+                "title=Track%201", first,
+                "title=Other", other,
+                "artist=Missing", MAPPER.nullNode());
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (var entry : cases.entrySet()) {
+                try (Response response = client.get("/api/tracks?" + entry.getKey())) {
+                    assertEquals(200, response.code());
+                    assertEquals(entry.getValue(), json(response).get("album"), entry.getKey());
+                }
+            }
+            try (Response response = client.get("/api/album?title=Other")) {
+                assertEquals(200, response.code());
+                assertEquals(other, json(response).get("album"));
+            }
+        });
+    }
+
+    @Test
+    void appliesTrackLimitsAfterFilteringForAllQueries() throws Exception {
+        loadMultipleAlbums();
+        Map<String, Integer> cases = Map.of(
+                "", 3, "sort=year", 3, "artist=Artist%20One", 2,
+                "album=Album", 2, "genre=Jazz", 2, "artist=Missing", 0);
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (int limit : List.of(1, 2, 3, 4, 0, -1)) {
+                app.config().maxResults = limit;
+                for (var entry : cases.entrySet()) {
+                    try (Response response = client.get("/api/tracks?" + entry.getKey())) {
+                        assertEquals(200, response.code());
+                        int expected = limit > 0 ? Math.min(limit, entry.getValue()) : entry.getValue();
+                        assertEquals(expected, json(response).get("files").size(),
+                                entry.getKey() + " limit=" + limit);
+                    }
+                }
+            }
+        });
+    }
+
+    @Test
+    void checksSingleAlbumBeforeLimitingAndSortsBeforeLimitingTracks() throws Exception {
+        loadMultipleAlbums();
+        reload("""
+                UPDATE mediafile SET year = CASE title
+                    WHEN 'Track 1' THEN '1990'
+                    WHEN 'Other Track' THEN '2010'
+                    WHEN 'Second Track' THEN '2000'
+                    END
+                """);
+        app.config().maxResults = 1;
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            try (Response response = client.get("/api/tracks?genre=Jazz&sort=year")) {
+                assertEquals(200, response.code());
+                JsonNode data = json(response);
+                assertEquals(1, data.get("files").size());
+                assertEquals("Other Track", data.get("files").get(0).get("title").asText());
+                assertTrue(data.get("album").isNull());
+                assertTrue(data.get("coverPath").asText().endsWith("/Other [2000]/cover.jpg"));
+            }
+            try (Response response = client.get("/api/tracks?album=Album&sort=year")) {
+                assertEquals(200, response.code());
+                JsonNode data = json(response);
+                assertEquals(1, data.get("files").size());
+                // Artist/album filters preserve track order even with sort=year.
+                assertEquals("Track 1", data.get("files").get(0).get("title").asText());
+                assertEquals("/data/Music/A/Artist One/Album [2000]", data.get("album").get("path").asText());
+            }
+            assertEquals(3, app.mediaFilesDb().getJoinedFiles().size());
+            try (Response response = client.get("/api/random-track?title=Second")) {
+                assertEquals(200, response.code());
+                assertEquals("Second Track", json(response).get("title").asText());
+            }
+        });
+    }
+
+    @Test
+    void omitsAlbumMetadataForMissingOrMixedAlbumPaths() throws Exception {
+        loadMultipleAlbums();
+        for (String sql : List.of(
+                "UPDATE mediafile SET albumpath = NULL WHERE title = 'Second Track'",
+                "UPDATE mediafile SET albumpath = NULL",
+                "UPDATE mediafile SET albumpath = '/unmatched/album'")) {
+            reload(sql);
+            JavalinTest.test(app.javalin(), (server, client) -> {
+                try (Response response = client.get("/api/tracks")) {
+                    assertEquals(200, response.code());
+                    JsonNode data = json(response);
+                    assertEquals(3, data.get("files").size());
+                    assertTrue(data.get("album").isNull(), sql);
+                }
+            });
+        }
+    }
+
+    @Test
     void filtersAlbumMetadataAndRelatedTrackAndArtistData() {
         Map<String, Integer> cases = Map.ofEntries(
                 Map.entry("explicitCover=true", 1),
@@ -334,7 +440,9 @@ class TestAlbumApi {
                 }
                 try (Response response = client.get("/api/tracks")) {
                     assertEquals(200, response.code());
-                    assertEquals(1, json(response).get("files").size());
+                    JsonNode data = json(response);
+                    assertEquals(1, data.get("files").size());
+                    assertTrue(data.get("album").isNull());
                 }
                 try (Response response = client.get("/api/artist?artist=Artist%20One")) {
                     assertEquals(200, response.code());

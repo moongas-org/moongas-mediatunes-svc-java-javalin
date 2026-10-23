@@ -84,6 +84,19 @@ It returns `id`, `path`, `name`, `year` and boolean `explicitCover`.
 If the database lacks an `album` table, `/api/albums` returns an empty list,
 `/api/album` returns HTTP 404, and track queries without `explicitCover` still work.
 
+## Track queries
+
+`GET /api/tracks` applies `maxResults` after filtering and sorting, including
+requests filtered by artist or album. Zero or negative values mean unlimited
+results, as with `maxResultsAlbumCovers`. This limit does not restrict the
+candidates used by `/api/random-track`.
+
+The response includes `files`, `coverPath` and an `album` field. When every
+matching track (before the result limit) belongs to the same album directory,
+`album` contains its metadata in the same shape as `/api/album`
+(`id`, `path`, `name`, `year`, `explicitCover`). Otherwise, or when metadata is
+missing, it is `null`. At most one album lookup is performed per request.
+
 ## Running
 
 ```

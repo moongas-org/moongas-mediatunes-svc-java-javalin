@@ -76,6 +76,7 @@ public class TestApi {
                 assertEquals(1, data.get("files").size());
                 assertEquals("Track 1", data.get("files").get(0).get("title").asText());
                 assertEquals("Rock", data.get("files").get(0).get("genre").asText());
+                assertEquals("Album Metadata Name", data.get("album").get("name").asText());
             }
         });
     }
@@ -87,6 +88,8 @@ public class TestApi {
                 assertEquals(200, resp.code());
                 JsonNode data = json(resp);
                 assertEquals(0, data.get("files").size());
+                assertEquals("", data.get("coverPath").asText());
+                assertTrue(data.get("album").isNull());
             }
         });
     }
