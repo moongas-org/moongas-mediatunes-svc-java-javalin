@@ -139,7 +139,9 @@ public class MoonGasServer {
         });
 
         // media files (/getfile/<path>) are served from the root, not under url_prefix
-        javalin.get("/getfile/{path}", new GetFileHandler(config));
+        GetFileHandler getFileHandler = new GetFileHandler(config);
+        javalin.get("/getfile/<path>", getFileHandler);
+        javalin.head("/getfile/<path>", getFileHandler);
         apiRoutes.register(javalin, urlPrefix);
 
         return new MediatunesApp(config, conn, mediaFilesDb, apiRoutes, javalin);

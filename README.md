@@ -104,6 +104,20 @@ matching track (before the result limit) belongs to the same album directory,
 (`id`, `path`, `name`, `year`, `explicitCover`). Otherwise, or when metadata is
 missing, it is `null`. At most one album lookup is performed per request.
 
+## Media file requests
+
+`GET /getfile/<path>` serves media files and album covers with `Accept-Ranges:
+bytes` and an explicit `Content-Length`. Single HTTP byte ranges (closed,
+open-ended or suffix) return `206 Partial Content` with `Content-Range`.
+Unsatisfiable ranges return `416` with `Content-Range: bytes */<file-size>` and
+an empty body. Malformed ranges, unsupported units, multipart ranges and
+requests containing `If-Range` fall back to the full `200` response, matching
+the Python service (this route does not emit validators).
+
+`HEAD` returns the full file's headers without a body and ignores `Range`.
+The existing allowed-path check and `.jpg` to `.webp` fallback also apply to
+range requests.
+
 ## Running
 
 ```
