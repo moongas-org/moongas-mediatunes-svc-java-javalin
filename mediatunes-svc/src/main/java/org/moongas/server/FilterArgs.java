@@ -4,6 +4,7 @@
  */
 package org.moongas.server;
 
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 
@@ -87,6 +88,24 @@ public record FilterArgs(
     /** True if any of the album/artist/albumartist filters are present. */
     public boolean hasAlbumOrArtistFilter() {
         return album != null || artist != null || albumartist != null;
+    }
+
+    public FilterArgs expandArtistArgs() {
+        if (artist == null || artist.isEmpty()) {
+            return this;
+        }
+        var expanded = new LinkedHashSet<String>();
+        for (String value : artist) {
+            expanded.add(value);
+            for (String part : value.split(",")) {
+                String trimmed = part.strip();
+                if (!trimmed.isEmpty()) {
+                    expanded.add(trimmed);
+                }
+            }
+        }
+        return new FilterArgs(genre, List.copyOf(expanded), albumartist, album, title, year,
+                countryCode, regionCode, city, languageCode, minYear, maxYear, sort, explicitCover);
     }
 
     private static boolean lacksAnySubstringIgnoreCase(String value, List<String> allowed) {

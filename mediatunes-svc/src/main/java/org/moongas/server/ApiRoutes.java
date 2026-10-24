@@ -222,6 +222,7 @@ public class ApiRoutes {
             body.put("path", mediaFile.path());
             body.put("coverPath", db.getCoverPath(mediaFile.path()));
             body.put("artist", mediaFile.artist());
+            body.put("albumartist", mediaFile.albumartist());
             body.put("album", mediaFile.album());
             body.put("title", mediaFile.title());
             body.put("genre", mediaFile.genre());

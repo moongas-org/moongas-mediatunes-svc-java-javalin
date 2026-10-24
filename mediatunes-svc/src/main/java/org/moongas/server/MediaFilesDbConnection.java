@@ -229,6 +229,7 @@ public class MediaFilesDbConnection {
     }
 
     public List<MediaFileRow> filterFiles(FilterArgs args) {
+        args = args.expandArtistArgs();
         Set<String> albumPaths = new HashSet<>();
         if (args.explicitCover() != null) {
             for (AlbumRow album : albums) {

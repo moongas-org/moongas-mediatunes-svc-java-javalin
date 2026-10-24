@@ -73,6 +73,13 @@ throughout the API. Repeated values match any value, so
 `artist=wu-tang&artist=dr.+dre` matches "Wu-Tang Clan". Different filter fields
 must all match. For an exact year, use the same `minYear` and `maxYear` value.
 
+Track-based filtering (`/api/tracks`, `/api/random-track`, `/api/artists` and
+`/api/album`) also expands each `artist` value into its comma-separated parts.
+For example, `artist=A+Tribe+Called+Quest,+Busta+Rhymes,+Redman` matches any
+of those artists as well as the original combined value. Parts are trimmed,
+empty parts are ignored, and exact duplicates are removed. This expansion
+does not apply to `albumartist`, `/api/albums`, `/api/artist` or artist word clouds.
+
 `explicitCover` is an optional scalar boolean accepting `true`, `false`, `1`
 or `0` (case-insensitive). Invalid or blank values return HTTP 400. It also
 filters `/api/tracks`, `/api/random-track`, `/api/artists` and `/api/album`

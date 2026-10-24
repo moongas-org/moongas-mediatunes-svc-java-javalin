@@ -95,6 +95,58 @@ public class TestApi {
     }
 
     @Test
+    void expandsArtistArgumentsOnlyForTrackBasedFilters() {
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (String query : List.of(
+                    "artist=Missing,+Artist+One,+Nobody",
+                    "artist[]=Missing,Artist+One,Nobody",
+                    "artist=Missing&artist=Nobody,+Artist+One",
+                    "artist=,+Artist+One,,+&genre=oc&explicitCover=true")) {
+                for (var endpoint : Map.of("tracks", "files", "artists", "artists").entrySet()) {
+                    try (Response response = client.get("/api/" + endpoint.getKey() + "?" + query)) {
+                        assertEquals(200, response.code(), query);
+                        assertEquals(1, json(response).get(endpoint.getValue()).size(), query);
+                    }
+                }
+                for (var endpoint : Map.of("album", "album", "random-track", "artist").entrySet()) {
+                    try (Response response = client.get("/api/" + endpoint.getKey() + "?" + query)) {
+                        assertEquals(200, response.code(), query);
+                        assertTrue(json(response).has(endpoint.getValue()), query);
+                    }
+                }
+            }
+            for (String endpoint : List.of("tracks", "artists", "album", "random-track")) {
+                for (String query : List.of(
+                        "artist=Missing,+Nobody",
+                        "artist=Missing,+Artist+One&genre=Jazz",
+                        "artist=Missing,+Artist+One&explicitCover=false",
+                        "albumartist=Missing,+Artist+One")) {
+                    try (Response response = client.get("/api/" + endpoint + "?" + query)) {
+                        boolean single = List.of("album", "random-track").contains(endpoint);
+                        assertEquals(single ? 404 : 200, response.code(), endpoint + "?" + query);
+                        if (!single) {
+                            assertEquals(0, json(response).get(
+                                    "tracks".equals(endpoint) ? "files" : "artists").size(), query);
+                        }
+                    }
+                }
+            }
+            String query = "?artist=Missing,+Artist+One";
+            try (Response response = client.get("/api/albums" + query)) {
+                assertEquals(200, response.code());
+                assertEquals(0, json(response).get("albums").size());
+            }
+            try (Response response = client.get("/api/artist" + query)) {
+                assertEquals(404, response.code());
+            }
+            try (Response response = client.get("/api/wordcloud/artists" + query)) {
+                assertEquals(200, response.code());
+                assertEquals(0, json(response).get("words").size());
+            }
+        });
+    }
+
+    @Test
     void matchesSubstringsAcrossTrackAndAlbumEndpoints() {
         List<String> matchingQueries = List.of(
                 "artist=missing&artist=oNE",
@@ -310,6 +362,7 @@ public class TestApi {
                 JsonNode data = json(resp);
                 assertEquals("Track 1", data.get("title").asText());
                 assertEquals("Artist One", data.get("artist").asText());
+                assertEquals("Artist One", data.get("albumartist").asText());
                 assertTrue(data.has("coverPath"));
             }
             try (Response resp = client.get("/api/random-track?genre=Jazz")) {
