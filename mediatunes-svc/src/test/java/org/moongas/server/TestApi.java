@@ -74,9 +74,31 @@ public class TestApi {
                 assertEquals(200, resp.code());
                 JsonNode data = json(resp);
                 assertEquals(1, data.get("files").size());
-                assertEquals("Track 1", data.get("files").get(0).get("title").asText());
-                assertEquals("Rock", data.get("files").get(0).get("genre").asText());
+                JsonNode track = data.get("files").get(0);
+                assertEquals("Track 1", track.get("title").asText());
+                assertEquals("Rock", track.get("genre").asText());
+                assertEquals(1, track.get("id").asInt());
+                assertEquals("/data/Music/A/Artist One/Album [2000]", track.get("albumPath").asText());
+                assertEquals(TestDbs.ARTIST_ONE_PATH, track.get("artistPath").asText());
                 assertEquals("Album Metadata Name", data.get("album").get("name").asText());
+            }
+        });
+    }
+
+    @Test
+    void Test_api_mediafiles() {
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            try (Response response = client.get("/api/mediafiles?trackid=1")) {
+                assertEquals(200, response.code());
+                JsonNode mediafiles = json(response).get("mediafiles");
+                assertEquals(1, mediafiles.size());
+                assertEquals(TestDbs.TRACK_ONE_PATH, mediafiles.get(0).get("path").asText());
+                assertEquals(1024, mediafiles.get(0).get("size").asInt());
+            }
+            for (String query : List.of("", "?trackid=not-an-integer")) {
+                try (Response response = client.get("/api/mediafiles" + query)) {
+                    assertEquals(400, response.code());
+                }
             }
         });
     }

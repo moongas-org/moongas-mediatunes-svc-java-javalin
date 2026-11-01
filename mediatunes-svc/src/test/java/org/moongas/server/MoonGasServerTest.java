@@ -18,9 +18,9 @@ class MoonGasServerTest {
     }
 
     private static boolean genreMatches(String genre, List<String> filter) {
-        MediaFilesDbConnection.MediaFileRow row = new MediaFilesDbConnection.MediaFileRow(
-                1, "/data/Music/A/X/Al [2000]/01 - T.mp3", "", "/data/Music/A/X",
-                "T", "X", "X", "Al", genre, "2000", "", "", "", "");
+        MediaFilesDbConnection.TrackRow row = new MediaFilesDbConnection.TrackRow(
+                1, "/data/Music/A/X/Al [2000]/01 - T.mp3", 1, "/data/Music/A/X/Al [2000]",
+                "/data/Music/A/X", "T", "X", "X", "Al", genre, "2000", "", "", "", "");
         return argsWithGenre(filter).matches(row);
     }
 

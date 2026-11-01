@@ -83,13 +83,15 @@ does not apply to `albumartist`, `/api/albums`, `/api/artist` or artist word clo
 `explicitCover` is an optional scalar boolean accepting `true`, `false`, `1`
 or `0` (case-insensitive). Invalid or blank values return HTTP 400. It also
 filters `/api/tracks`, `/api/random-track`, `/api/artists` and `/api/album`
-through the track's album path.
+through the track's related album ID.
 
 Like the Python service, `GET /api/album` selects the first album whose tracks
 match the filters; its `album` and year filters still refer to track tags.
 It returns `id`, `path`, `name`, `year` and boolean `explicitCover`.
-If the database lacks an `album` table, `/api/albums` returns an empty list,
-`/api/album` returns HTTP 404, and track queries without `explicitCover` still work.
+The mediascan database must contain `track`, `album`, `artist` and `mediafile` tables;
+`track.artistid` and `track.albumid` reference `artist.id` and `album.id`,
+and `album.artistid` references `artist.id`. `GET /api/mediafiles?trackid=<id>`
+returns the raw mediafile rows for that track.
 
 ## Track queries
 
@@ -99,7 +101,7 @@ results, as with `maxResultsAlbumCovers`. This limit does not restrict the
 candidates used by `/api/random-track`.
 
 The response includes `files`, `coverPath` and an `album` field. When every
-matching track (before the result limit) belongs to the same album directory,
+matching track (before the result limit) belongs to the same album,
 `album` contains its metadata in the same shape as `/api/album`
 (`id`, `path`, `name`, `year`, `explicitCover`). Otherwise, or when metadata is
 missing, it is `null`. At most one album lookup is performed per request.

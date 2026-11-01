@@ -32,11 +32,11 @@ public final class TestDbs {
 
     public static void createSchema(Connection conn) throws SQLException {
         conn.createStatement().execute("""
-                CREATE TABLE mediafile (
+                CREATE TABLE track (
                     id INTEGER PRIMARY KEY,
                     path TEXT,
-                    albumpath TEXT,
-                    artistpath TEXT,
+                    albumid INTEGER,
+                    artistid INTEGER,
                     title TEXT,
                     artist TEXT,
                     albumartist TEXT,
@@ -51,17 +51,28 @@ public final class TestDbs {
                     path TEXT UNIQUE,
                     name TEXT,
                     year INTEGER,
-                    explicitcover BOOLEAN
+                    explicitcover BOOLEAN,
+                    genre TEXT,
+                    artistid INTEGER
                 )
                 """);
         conn.createStatement().execute("""
                 CREATE TABLE artist (
-                    path TEXT PRIMARY KEY,
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    path TEXT UNIQUE,
                     name TEXT,
                     countrycode TEXT,
                     regioncode TEXT,
                     city TEXT,
                     languagecode TEXT
+                )
+                """);
+        conn.createStatement().execute("""
+                CREATE TABLE mediafile (
+                    id INTEGER PRIMARY KEY,
+                    trackid INTEGER,
+                    path TEXT,
+                    size INTEGER
                 )
                 """);
     }
@@ -74,34 +85,42 @@ public final class TestDbs {
 
     public static void insertTrackOne(Connection conn) throws SQLException {
         conn.createStatement().execute(
-                "INSERT INTO mediafile (id, path, albumpath, artistpath, title, artist, albumartist, album, genre, year) "
-                        + "VALUES (1, '" + TRACK_ONE_PATH + "', '/data/Music/A/Artist One/Album [2000]', "
-                        + "'" + ARTIST_ONE_PATH + "', 'Track 1', 'Artist One', 'Artist One', 'Album', 'Rock', '2000')");
+                "INSERT INTO track (id, path, albumid, artistid, title, artist, albumartist, album, genre, year) "
+                        + "VALUES (1, '" + TRACK_ONE_PATH + "', 1, 1, 'Track 1', "
+                        + "'Artist One', 'Artist One', 'Album', 'Rock', '2000')");
     }
 
     public static void insertAlbumOne(Connection conn) throws SQLException {
         conn.createStatement().execute(
-                "INSERT INTO album (path, name, year, explicitcover) "
-                        + "VALUES ('/data/Music/A/Artist One/Album [2000]', 'Album Metadata Name', 2001, 1)");
+                "INSERT INTO album (path, name, year, explicitcover, genre, artistid) "
+                        + "VALUES ('/data/Music/A/Artist One/Album [2000]', 'Album Metadata Name', 2001, 1, 'Rock', 1)");
+        conn.createStatement().execute(
+                "INSERT INTO mediafile (id, trackid, path, size) VALUES (1, 1, '"
+                        + TRACK_ONE_PATH + "', 1024)");
     }
 
     public static void insertAdditionalAlbums(Connection conn) throws SQLException {
         try (var stmt = conn.createStatement()) {
             stmt.execute("""
-                    INSERT INTO album (path, name, year, explicitcover) VALUES
-                        ('/data/Music/A/Artist One/Other [2000]', 'Album Metadata Name', 2001, 0),
-                        ('/data/Music/A/Artist One/Standalone [1990]', 'Standalone', 1990, 0)
+                    INSERT INTO album (path, name, year, explicitcover, genre, artistid) VALUES
+                        ('/data/Music/A/Artist One/Other [2000]', 'Album Metadata Name', 2001, 0, 'Jazz', 1),
+                        ('/data/Music/A/Artist One/Standalone [1990]', 'Standalone', 1990, 0, 'Rock', NULL)
                     """);
             stmt.execute("""
-                    INSERT INTO mediafile
-                        (path, albumpath, artistpath, title, artist, albumartist, album, genre, year)
+                    INSERT INTO track
+                        (id, path, albumid, artistid, title, artist, albumartist, album, genre, year)
                     VALUES
-                        ('/data/Music/A/Artist One/Other [2000]/01.mp3',
-                         '/data/Music/A/Artist One/Other [2000]', '/data/Music/A/Artist One',
+                        (2, '/data/Music/A/Artist One/Other [2000]/01.mp3',
+                         2, 1,
                          'Other Track', 'Artist One', '', 'Other', 'Jazz', '2000'),
-                        ('/data/Music/A/Artist One/Album [2000]/02.mp3',
-                         '/data/Music/A/Artist One/Album [2000]', '/data/Music/A/Artist One',
+                        (3, '/data/Music/A/Artist One/Album [2000]/02.mp3',
+                         1, 1,
                          'Second Track', 'Guest Artist', 'Artist One', 'Album', 'Jazz', '2000')
+                    """);
+            stmt.execute("""
+                    INSERT INTO mediafile (id, trackid, path, size) VALUES
+                        (2, 2, '/data/Music/A/Artist One/Other [2000]/01.mp3', 2048),
+                        (3, 3, '/data/Music/A/Artist One/Album [2000]/02.mp3', 4096)
                     """);
         }
     }

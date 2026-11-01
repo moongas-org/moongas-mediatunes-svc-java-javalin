@@ -2,46 +2,41 @@ package org.moongas.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.sql.SQLException;
-import java.util.List;
+import java.nio.file.Files;
+import java.sql.DriverManager;
 
-import org.moongas.config.MediatunesServiceConfig;
-import org.moongas.server.MediaFilesDbConnection.MediaFileRow;
 import org.junit.jupiter.api.Test;
 
-public class TestMediaFilesDbConnection {
-
-    String getTestDbUrl(String filename) {
-        Path testDbPath = TestResourceLoader.getTestResource(filename);
-        return "jdbc:sqlite:" + testDbPath;
-    }
+class TestMediaFilesDbConnection {
 
     @Test
-    void Test_getMediaFiles() throws SQLException, IOException {
-        String dbUrl = getTestDbUrl("mediascan.db");
-        DbConnection conn = new DbConnection(dbUrl);
-        MediaFilesDbConnection md = new MediaFilesDbConnection(conn, new MediatunesServiceConfig());
-        int matchCount = 0;
-        for (MediaFileRow mf : md.getJoinedFiles()) {
-            if (mf.artist().equals("Siouxsie And The Banshees") && mf.title().equals("92°")) {
-                matchCount += 1;
-            }
+    void loadsTracksAndFiltersThemUsingTheNewSchema() throws Exception {
+        var dbFile = TestDbs.createApiTestDb();
+        try (DbConnection conn = new DbConnection("jdbc:sqlite:" + dbFile)) {
+            MediaFilesDbConnection db = new MediaFilesDbConnection(conn, TestDbs.testConfig(dbFile));
+            assertEquals(1, db.getJoinedTracks().size());
+            assertEquals("Track 1", db.getJoinedTracks().get(0).title());
+            assertEquals(1, db.getJoinedTracks().get(0).albumId());
+            assertEquals(1, db.getMediaFilesForTrack(1).size());
+            assertEquals(0, db.getMediaFilesForTrack(2).size());
+        } finally {
+            Files.deleteIfExists(dbFile);
         }
-        assertEquals(1, matchCount);
-        conn.close();
     }
 
     @Test
-    void Test_getMediaFilesByArtist() throws SQLException, IOException {
-        String dbUrl = getTestDbUrl("mediascan.db");
-        DbConnection conn = new DbConnection(dbUrl);
-        MediaFilesDbConnection md = new MediaFilesDbConnection(conn, new MediatunesServiceConfig());
-        FilterArgs args = new FilterArgs(null, null, List.of("Siouxsie And The Banshees"),
-                null, null, null, null, null, null, null, null, null, null, null);
-        List<MediaFileRow> results = md.filterFiles(args);
-        assertEquals(44, results.size());
-        conn.close();
+    void filtersByAlbumArtist() throws Exception {
+        var dbFile = TestDbs.createApiTestDb();
+        try (var conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile)) {
+            TestDbs.insertAdditionalAlbums(conn);
+        }
+        try (DbConnection conn = new DbConnection("jdbc:sqlite:" + dbFile)) {
+            MediaFilesDbConnection db = new MediaFilesDbConnection(conn, TestDbs.testConfig(dbFile));
+            FilterArgs args = new FilterArgs(null, null, java.util.List.of("Artist One"),
+                    null, null, null, null, null, null, null, null, null, null, null);
+            assertEquals(2, db.filterTracks(args).size());
+        } finally {
+            Files.deleteIfExists(dbFile);
+        }
     }
 }

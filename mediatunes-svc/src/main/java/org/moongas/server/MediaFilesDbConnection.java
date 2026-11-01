@@ -6,32 +6,28 @@ package org.moongas.server;
 
 import java.io.IOException;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.moongas.config.MediatunesServiceConfig;
 import org.moongas.datatypes.MediaFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
- * Loads the entire mediascan database into memory at startup and serves all
- * queries from the cached lists, mirroring the pandas DataFrames of the
- * Python implementation (files and albums enriched with track/artist data).
+ * Loads mediascan tracks, albums, artists, and media files at startup.
  */
 public class MediaFilesDbConnection {
 
-    private static final Logger logger = LoggerFactory.getLogger(MediaFilesDbConnection.class);
-
-    /** A row of the mediafile LEFT JOIN artist result (track + artist geo data). */
-    public record MediaFileRow(
+    public record TrackRow(
             int id,
             String path,
+            Integer albumId,
             String albumPath,
             String artistPath,
             String title,
@@ -50,15 +46,12 @@ public class MediaFilesDbConnection {
         }
 
         public MediaFile toMediaFile() {
-            // size, format and duration are hardcoded, as in the Python row_to_mediafile()
-            return new MediaFile(path, 0, "mp3", nullToEmpty(title), nullToEmpty(artist),
-                    nullToEmpty(albumartist), nullToEmpty(album), nullToEmpty(genre),
-                    year(), 0, nullToEmpty(countryCode), nullToEmpty(regionCode),
-                    nullToEmpty(city), nullToEmpty(languageCode));
+            return new MediaFile(id, path, albumPath, artistPath, 0, "mp3",
+                    title, artist, albumartist, album, genre, optionalYear(yearStr),
+                    0, countryCode, regionCode, city, languageCode);
         }
     }
 
-    /** A row of the artist table. */
     public record ArtistRow(
             String path,
             String name,
@@ -68,17 +61,25 @@ public class MediaFilesDbConnection {
             String languageCode) {
     }
 
-    /** An album row enriched with one related track and its artist's geo data. */
     public record AlbumRow(
-            int id, String path, String name, int year, boolean explicitCover,
-            String artist, String albumartist, String title, String genre,
-            String countryCode, String regionCode, String city, String languageCode) {
+            int id,
+            String path,
+            String name,
+            int year,
+            boolean explicitCover,
+            String artist,
+            String genre,
+            String countryCode,
+            String regionCode,
+            String city,
+            String languageCode) {
     }
 
     private final MediatunesServiceConfig config;
-    private final List<MediaFileRow> joinedFiles;
+    private final List<TrackRow> joinedTracks;
     private final List<ArtistRow> artists;
     private final List<AlbumRow> albums;
+    private final List<Map<String, Object>> mediaFiles;
     private final Map<String, String> countryCodeNameMap;
     private final Map<String, String> regionCodeNameMap;
     private final Map<String, String> languageCodeNameMap;
@@ -88,7 +89,7 @@ public class MediaFilesDbConnection {
         this.config = config;
 
         List<String> missingTables = new ArrayList<>();
-        for (String table : List.of("mediafile", "artist")) {
+        for (String table : List.of("track", "artist", "album", "mediafile")) {
             if (!conn.hasTable(table)) {
                 missingTables.add(table);
             }
@@ -99,22 +100,41 @@ public class MediaFilesDbConnection {
                     "Database is missing required table(s): " + missingTables);
         }
 
-        joinedFiles = new ArrayList<>();
+        joinedTracks = new ArrayList<>();
         try (Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery(
-                        "SELECT * FROM mediafile LEFT JOIN artist ON mediafile.artistpath = artist.path")) {
+                ResultSet rs = stmt.executeQuery("""
+                        SELECT track.id AS track_id,
+                            track.path AS track_path,
+                            track.albumid AS track_albumid,
+                            track.title AS track_title,
+                            track.artist AS track_artist,
+                            track.albumartist AS track_albumartist,
+                            track.album AS track_album,
+                            track.genre AS track_genre,
+                            track.year AS track_year,
+                            artist.path AS artist_path,
+                            album.path AS album_path,
+                            artist.countrycode AS countrycode,
+                            artist.regioncode AS regioncode,
+                            artist.city AS city,
+                            artist.languagecode AS languagecode
+                        FROM track
+                        LEFT JOIN artist ON track.artistid = artist.id
+                        LEFT JOIN album ON track.albumid = album.id
+                        """)) {
             while (rs.next()) {
-                joinedFiles.add(new MediaFileRow(
-                        rs.getInt("id"),
-                        rs.getString("path"),
-                        getColumnOrEmpty(rs, "albumpath"),
-                        rs.getString("artistpath"),
-                        rs.getString("title"),
-                        rs.getString("artist"),
-                        rs.getString("albumartist"),
-                        rs.getString("album"),
-                        rs.getString("genre"),
-                        rs.getString("year"),
+                joinedTracks.add(new TrackRow(
+                        rs.getInt("track_id"),
+                        rs.getString("track_path"),
+                        getInteger(rs, "track_albumid"),
+                        rs.getString("album_path"),
+                        rs.getString("artist_path"),
+                        rs.getString("track_title"),
+                        rs.getString("track_artist"),
+                        rs.getString("track_albumartist"),
+                        rs.getString("track_album"),
+                        rs.getString("track_genre"),
+                        rs.getString("track_year"),
                         rs.getString("countrycode"),
                         rs.getString("regioncode"),
                         rs.getString("city"),
@@ -124,7 +144,10 @@ public class MediaFilesDbConnection {
 
         artists = new ArrayList<>();
         try (Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery("SELECT * FROM artist")) {
+                ResultSet rs = stmt.executeQuery("""
+                        SELECT path, name, city, countrycode, regioncode, languagecode
+                        FROM artist
+                        """)) {
             while (rs.next()) {
                 artists.add(new ArtistRow(
                         rs.getString("path"),
@@ -137,41 +160,49 @@ public class MediaFilesDbConnection {
         }
 
         albums = new ArrayList<>();
-        if (conn.hasTable("album")) {
-            try (Statement stmt = conn.createStatement();
-                    ResultSet rs = stmt.executeQuery("""
-                            SELECT album.*,
-                                COALESCE(mediafile.artist, '') AS artist,
-                                COALESCE(mediafile.albumartist, '') AS albumartist,
-                                COALESCE(mediafile.title, '') AS title,
-                                COALESCE(mediafile.genre, '') AS genre,
-                                COALESCE(artist.countrycode, '') AS countrycode,
-                                COALESCE(artist.regioncode, '') AS regioncode,
-                                COALESCE(artist.city, '') AS city,
-                                COALESCE(artist.languagecode, '') AS languagecode
-                            FROM album
-                            LEFT JOIN mediafile ON mediafile.albumpath = album.path
-                            LEFT JOIN artist ON mediafile.artistpath = artist.path
-                            """)) {
-                while (rs.next()) {
-                    albums.add(new AlbumRow(
-                            rs.getInt("id"),
-                            nullToEmpty(rs.getString("path")),
-                            nullToEmpty(rs.getString("name")),
-                            rs.getInt("year"),
-                            rs.getInt("explicitcover") != 0,
-                            rs.getString("artist"),
-                            rs.getString("albumartist"),
-                            rs.getString("title"),
-                            rs.getString("genre"),
-                            rs.getString("countrycode"),
-                            rs.getString("regioncode"),
-                            rs.getString("city"),
-                            rs.getString("languagecode")));
-                }
+        try (Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("""
+                        SELECT album.id AS album_id,
+                            album.path AS album_path,
+                            album.name AS album_name,
+                            album.year AS album_year,
+                            album.explicitcover AS album_explicitcover,
+                            album.genre AS album_genre,
+                            artist.name AS artist_name,
+                            artist.countrycode AS countrycode,
+                            artist.regioncode AS regioncode,
+                            artist.city AS city,
+                            artist.languagecode AS languagecode
+                        FROM album
+                        LEFT JOIN artist ON album.artistid = artist.id
+                        """)) {
+            while (rs.next()) {
+                albums.add(new AlbumRow(
+                        rs.getInt("album_id"),
+                        rs.getString("album_path"),
+                        rs.getString("album_name"),
+                        rs.getInt("album_year"),
+                        rs.getInt("album_explicitcover") != 0,
+                        rs.getString("artist_name"),
+                        rs.getString("album_genre"),
+                        rs.getString("countrycode"),
+                        rs.getString("regioncode"),
+                        rs.getString("city"),
+                        rs.getString("languagecode")));
             }
-        } else {
-            logger.warn("Database has no 'album' table; album metadata requests will return 404.");
+        }
+
+        mediaFiles = new ArrayList<>();
+        try (Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery("SELECT * FROM mediafile")) {
+            ResultSetMetaData metadata = rs.getMetaData();
+            while (rs.next()) {
+                Map<String, Object> row = new LinkedHashMap<>();
+                for (int i = 1; i <= metadata.getColumnCount(); i++) {
+                    row.put(metadata.getColumnLabel(i), rs.getObject(i));
+                }
+                mediaFiles.add(row);
+            }
         }
 
         countryCodeNameMap = StaticJsonData.countryCodeNameMap();
@@ -179,21 +210,12 @@ public class MediaFilesDbConnection {
         languageCodeNameMap = StaticJsonData.languageCodeNameMap();
     }
 
-    private static String getColumnOrEmpty(ResultSet rs, String column) {
-        try {
-            return rs.getString(column);
-        } catch (SQLException e) {
-            // column absent (e.g. older DB without albumpath)
-            return "";
-        }
+    private static Integer getInteger(ResultSet rs, String column) throws SQLException {
+        int value = rs.getInt(column);
+        return rs.wasNull() ? null : value;
     }
 
-    private static String nullToEmpty(String s) {
-        return s == null ? "" : s;
-    }
-
-    /** year is TEXT in the Python schema; parse like int(float(str(year))). */
-    static int parseYear(String yearStr) {
+    private static int parseYear(String yearStr) {
         try {
             return (int) Double.parseDouble(yearStr.trim());
         } catch (NumberFormatException | NullPointerException e) {
@@ -201,19 +223,26 @@ public class MediaFilesDbConnection {
         }
     }
 
-    /** The joined mediafile+artist rows (all tracks with geo data). */
-    public List<MediaFileRow> getJoinedFiles() {
-        return joinedFiles;
+    private static Integer optionalYear(String yearStr) {
+        return yearStr == null || yearStr.isBlank() ? null : parseYear(yearStr);
     }
 
-    /** All rows of the artist table. */
+    public List<TrackRow> getJoinedTracks() {
+        return joinedTracks;
+    }
+
     public List<ArtistRow> getArtists() {
         return artists;
     }
 
-    /** Enriched album rows (one per related track), or empty if the table is absent. */
     public List<AlbumRow> getAlbums() {
         return albums;
+    }
+
+    public List<Map<String, Object>> getMediaFilesForTrack(int trackId) {
+        return mediaFiles.stream()
+                .filter(row -> row.get("trackid") instanceof Number id && id.intValue() == trackId)
+                .toList();
     }
 
     public Map<String, String> getCountryCodeNameMap() {
@@ -228,20 +257,20 @@ public class MediaFilesDbConnection {
         return languageCodeNameMap;
     }
 
-    public List<MediaFileRow> filterFiles(FilterArgs args) {
+    public List<TrackRow> filterTracks(FilterArgs args) {
         args = args.expandArtistArgs();
-        Set<String> albumPaths = new HashSet<>();
+        Set<Integer> albumIds = new HashSet<>();
         if (args.explicitCover() != null) {
             for (AlbumRow album : albums) {
                 if (args.explicitCover() == album.explicitCover()) {
-                    albumPaths.add(album.path());
+                    albumIds.add(album.id());
                 }
             }
         }
-        List<MediaFileRow> ret = new ArrayList<>();
-        for (MediaFileRow row : joinedFiles) {
+        List<TrackRow> ret = new ArrayList<>();
+        for (TrackRow row : joinedTracks) {
             if (args.matches(row)
-                    && (args.explicitCover() == null || albumPaths.contains(row.albumPath()))) {
+                    && (args.explicitCover() == null || albumIds.contains(row.albumId()))) {
                 ret.add(row);
             }
         }
@@ -252,10 +281,6 @@ public class MediaFilesDbConnection {
         return albums.stream().filter(args::matchesAlbum).toList();
     }
 
-    /**
-     * Cover path for a track: its directory with mediaPath replaced by
-     * albumCoversPath (if they differ), plus "cover.jpg".
-     */
     public String getCoverPath(String filePath) {
         String dirPath = filePath.substring(0, filePath.lastIndexOf('/') + 1);
         return getAlbumCoverPath(dirPath);

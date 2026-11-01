@@ -124,7 +124,7 @@ public record FilterArgs(
         return true;
     }
 
-    public boolean matches(MediaFilesDbConnection.MediaFileRow row) {
+    public boolean matches(MediaFilesDbConnection.TrackRow row) {
         int rowYear = row.year();
         if (minYear != null && rowYear < minYear) {
             return false;
@@ -161,8 +161,6 @@ public record FilterArgs(
         return !(lacksAnySubstringIgnoreCase(row.name(), album)
                 || lacksAnySubstringIgnoreCase(Integer.toString(row.year()), year)
                 || lacksAnySubstringIgnoreCase(row.artist(), artist)
-                || lacksAnySubstringIgnoreCase(row.albumartist(), albumartist)
-                || lacksAnySubstringIgnoreCase(row.title(), title)
                 || lacksAnySubstringIgnoreCase(row.genre(), genre)
                 || lacksAnySubstringIgnoreCase(row.countryCode(), countryCode)
                 || lacksAnySubstringIgnoreCase(row.regionCode(), regionCode)

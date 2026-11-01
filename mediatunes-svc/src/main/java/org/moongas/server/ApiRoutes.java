@@ -18,6 +18,7 @@ import org.moongas.datatypes.GeoItem;
 import org.moongas.datatypes.MediaFile;
 
 import io.javalin.Javalin;
+import io.javalin.http.BadRequestResponse;
 import io.javalin.http.NotFoundResponse;
 
 /**
@@ -72,12 +73,13 @@ public class ApiRoutes {
 
         app.get(p + "/album", ctx -> {
             FilterArgs args = FilterArgs.from(ctx);
-            List<String> albumPaths = db.filterFiles(args).stream()
-                    .map(MediaFilesDbConnection.MediaFileRow::albumPath)
+            List<Integer> albumIds = db.filterTracks(args).stream()
+                    .map(MediaFilesDbConnection.TrackRow::albumId)
+                    .filter(java.util.Objects::nonNull)
                     .toList();
             MediaFilesDbConnection.AlbumRow found = null;
             for (MediaFilesDbConnection.AlbumRow album : db.getAlbums()) {
-                if (albumPaths.contains(album.path())) {
+                if (albumIds.contains(album.id())) {
                     found = album;
                     break;
                 }
@@ -90,14 +92,14 @@ public class ApiRoutes {
 
         app.get(p + "/tracks", ctx -> {
             FilterArgs args = FilterArgs.from(ctx);
-            List<MediaFilesDbConnection.MediaFileRow> filtered = db.filterFiles(args);
+            List<MediaFilesDbConnection.TrackRow> filtered = db.filterTracks(args);
             MediaFilesDbConnection.AlbumRow album = getSingleAlbum(filtered);
-            List<MediaFilesDbConnection.MediaFileRow> tracks = sortTracks(filtered, args);
+            List<MediaFilesDbConnection.TrackRow> tracks = sortTracks(filtered, args);
             if (config.maxResults > 0 && tracks.size() > config.maxResults) {
                 tracks = tracks.subList(0, config.maxResults);
             }
             List<MediaFile> files = new ArrayList<>();
-            for (MediaFilesDbConnection.MediaFileRow row : tracks) {
+            for (MediaFilesDbConnection.TrackRow row : tracks) {
                 files.add(row.toMediaFile());
             }
             String coverPath = files.isEmpty()
@@ -110,11 +112,25 @@ public class ApiRoutes {
             ctx.json(body);
         });
 
+        app.get(p + "/mediafiles", ctx -> {
+            String trackIdValue = ctx.queryParam("trackid");
+            if (trackIdValue == null) {
+                throw new BadRequestResponse("A trackid query parameter is required.");
+            }
+            int trackId;
+            try {
+                trackId = Integer.parseInt(trackIdValue);
+            } catch (NumberFormatException e) {
+                throw new BadRequestResponse("trackid must be an integer.");
+            }
+            ctx.json(Map.of("mediafiles", db.getMediaFilesForTrack(trackId)));
+        });
+
         app.get(p + "/artists", ctx -> {
             FilterArgs args = FilterArgs.from(ctx);
-            List<MediaFilesDbConnection.MediaFileRow> filtered = db.filterFiles(args);
+            List<MediaFilesDbConnection.TrackRow> filtered = db.filterTracks(args);
             Map<String, Integer> counts = new LinkedHashMap<>();
-            for (MediaFilesDbConnection.MediaFileRow row : filtered) {
+            for (MediaFilesDbConnection.TrackRow row : filtered) {
                 String name = row.albumartist();
                 counts.merge(name, 1, Integer::sum);
             }
@@ -157,7 +173,7 @@ public class ApiRoutes {
         app.get(p + "/genres", ctx -> {
             String sort = ctx.queryParam("sort");
             Map<String, Integer> counts = new LinkedHashMap<>();
-            for (MediaFilesDbConnection.MediaFileRow row : db.getJoinedFiles()) {
+            for (MediaFilesDbConnection.TrackRow row : db.getJoinedTracks()) {
                 counts.merge(row.genre(), 1, Integer::sum);
             }
             List<Map.Entry<String, Integer>> entries = new ArrayList<>(counts.entrySet());
@@ -182,8 +198,8 @@ public class ApiRoutes {
         });
 
         app.get(p + "/wordcloud/genres", ctx -> {
-            List<String> genres = db.getJoinedFiles().stream()
-                    .map(MediaFilesDbConnection.MediaFileRow::genre)
+            List<String> genres = db.getJoinedTracks().stream()
+                    .map(MediaFilesDbConnection.TrackRow::genre)
                     .distinct()
                     .sorted()
                     .toList();
@@ -211,11 +227,11 @@ public class ApiRoutes {
 
         app.get(p + "/random-track", ctx -> {
             FilterArgs args = FilterArgs.from(ctx);
-            List<MediaFilesDbConnection.MediaFileRow> filtered = db.filterFiles(args);
+            List<MediaFilesDbConnection.TrackRow> filtered = db.filterTracks(args);
             if (filtered.isEmpty()) {
                 throw new NotFoundResponse();
             }
-            MediaFilesDbConnection.MediaFileRow row =
+            MediaFilesDbConnection.TrackRow row =
                     filtered.get(new java.util.Random().nextInt(filtered.size()));
             MediaFile mediaFile = row.toMediaFile();
             Map<String, Object> body = new LinkedHashMap<>();
@@ -245,16 +261,16 @@ public class ApiRoutes {
     }
 
     private MediaFilesDbConnection.AlbumRow getSingleAlbum(
-            List<MediaFilesDbConnection.MediaFileRow> files) {
+            List<MediaFilesDbConnection.TrackRow> files) {
         if (files.isEmpty()) {
             return null;
         }
-        String path = files.get(0).albumPath();
-        if (path == null || files.stream().anyMatch(file -> !path.equals(file.albumPath()))) {
+        Integer albumId = files.get(0).albumId();
+        if (albumId == null || files.stream().anyMatch(file -> !albumId.equals(file.albumId()))) {
             return null;
         }
         for (MediaFilesDbConnection.AlbumRow album : db.getAlbums()) {
-            if (path.equals(album.path())) {
+            if (albumId == album.id()) {
                 return album;
             }
         }
@@ -264,7 +280,7 @@ public class ApiRoutes {
     private List<AlbumInfo> getAlbums(List<MediaFilesDbConnection.AlbumRow> albums, FilterArgs args) {
         Map<String, AlbumInfo> albumSet = new LinkedHashMap<>();
         for (MediaFilesDbConnection.AlbumRow row : albums) {
-            String artist = row.albumartist().isEmpty() ? row.artist() : row.albumartist();
+            String artist = row.artist() == null ? "" : row.artist();
             String coverPath = db.getAlbumCoverPath(row.path());
             albumSet.putIfAbsent(row.path(),
                     new AlbumInfo(artist, row.name(), row.year(), coverPath, row.explicitCover()));
@@ -285,14 +301,14 @@ public class ApiRoutes {
         return ret;
     }
 
-    private List<MediaFilesDbConnection.MediaFileRow> sortTracks(
-            List<MediaFilesDbConnection.MediaFileRow> filtered, FilterArgs args) {
-        List<MediaFilesDbConnection.MediaFileRow> ret = new ArrayList<>(filtered);
+    private List<MediaFilesDbConnection.TrackRow> sortTracks(
+            List<MediaFilesDbConnection.TrackRow> filtered, FilterArgs args) {
+        List<MediaFilesDbConnection.TrackRow> ret = new ArrayList<>(filtered);
         // Don't reorder tracks if displaying tracks for single album or a specific artist
         if (!args.hasAlbumOrArtistFilter()) {
             String sort = args.sort() == null ? "random" : args.sort();
             if ("year".equals(sort)) {
-                ret.sort(Comparator.comparingInt(MediaFilesDbConnection.MediaFileRow::year).reversed());
+                ret.sort(Comparator.comparingInt(MediaFilesDbConnection.TrackRow::year).reversed());
             } else if ("random".equals(sort)) {
                 Collections.shuffle(ret);
             }

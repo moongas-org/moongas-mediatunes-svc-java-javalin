@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 
 import org.moongas.config.MediatunesServiceConfig;
@@ -52,10 +53,61 @@ public class TestAppInit {
     }
 
     @Test
+    void Test_missing_mediafile_table_fails() throws IOException, SQLException {
+        Path dbFile = TestDbs.createApiTestDb();
+        try {
+            try (var conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
+                    var stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE mediafile");
+            }
+            MediatunesServiceConfig config = TestDbs.testConfig(dbFile);
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> MoonGasServer.createApp(config));
+            assertTrue(ex.getMessage().contains("mediafile"));
+        } finally {
+            Files.deleteIfExists(dbFile);
+        }
+    }
+
+    @Test
+    void Test_album_table_is_required() throws IOException, SQLException {
+        Path dbFile = TestDbs.tempDbPath();
+        try {
+            try (var conn = java.sql.DriverManager.getConnection("jdbc:sqlite:" + dbFile);
+                    var stmt = conn.createStatement()) {
+                stmt.execute("CREATE TABLE track (id INTEGER PRIMARY KEY)");
+                stmt.execute("CREATE TABLE artist (id INTEGER PRIMARY KEY)");
+            }
+            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                    () -> MoonGasServer.createApp(TestDbs.testConfig(dbFile)));
+            assertTrue(ex.getMessage().contains("album"));
+        } finally {
+            Files.deleteIfExists(dbFile);
+        }
+    }
+
+    @Test
+    void Test_mediafile_table_is_optional() throws IOException, SQLException {
+        Path dbFile = TestDbs.createApiTestDb();
+        try {
+            try (var conn = java.sql.DriverManager.getConnection("jdbc:sqlite:" + dbFile);
+                    var stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE mediafile");
+            }
+            try (MoonGasServer.MediatunesApp app = MoonGasServer.createApp(TestDbs.testConfig(dbFile))) {
+                assertEquals(1, app.mediaFilesDb().getJoinedTracks().size());
+                assertTrue(app.mediaFilesDb().getMediaFilesForTrack(1).isEmpty());
+            }
+        } finally {
+            Files.deleteIfExists(dbFile);
+        }
+    }
+
+    @Test
     void Test_valid_db_builds_app() throws IOException, SQLException {
         Path dbFile = TestDbs.createApiTestDb();
         try (MoonGasServer.MediatunesApp app = MoonGasServer.createApp(TestDbs.testConfig(dbFile))) {
-            assertEquals(1, app.mediaFilesDb().getJoinedFiles().size());
+            assertEquals(1, app.mediaFilesDb().getJoinedTracks().size());
             assertEquals(1, app.mediaFilesDb().getArtists().size());
         } finally {
             Files.deleteIfExists(dbFile);

@@ -126,7 +126,7 @@ class TestAlbumApi {
     void checksSingleAlbumBeforeLimitingAndSortsBeforeLimitingTracks() throws Exception {
         loadMultipleAlbums();
         reload("""
-                UPDATE mediafile SET year = CASE title
+                UPDATE track SET year = CASE title
                     WHEN 'Track 1' THEN '1990'
                     WHEN 'Other Track' THEN '2010'
                     WHEN 'Second Track' THEN '2000'
@@ -150,7 +150,7 @@ class TestAlbumApi {
                 assertEquals("Track 1", data.get("files").get(0).get("title").asText());
                 assertEquals("/data/Music/A/Artist One/Album [2000]", data.get("album").get("path").asText());
             }
-            assertEquals(3, app.mediaFilesDb().getJoinedFiles().size());
+            assertEquals(3, app.mediaFilesDb().getJoinedTracks().size());
             try (Response response = client.get("/api/random-track?title=Second")) {
                 assertEquals(200, response.code());
                 assertEquals("Second Track", json(response).get("title").asText());
@@ -162,9 +162,9 @@ class TestAlbumApi {
     void omitsAlbumMetadataForMissingOrMixedAlbumPaths() throws Exception {
         loadMultipleAlbums();
         for (String sql : List.of(
-                "UPDATE mediafile SET albumpath = NULL WHERE title = 'Second Track'",
-                "UPDATE mediafile SET albumpath = NULL",
-                "UPDATE mediafile SET albumpath = '/unmatched/album'")) {
+                "UPDATE track SET albumid = NULL WHERE title = 'Second Track'",
+                "UPDATE track SET albumid = NULL",
+                "UPDATE track SET albumid = 999")) {
             reload(sql);
             JavalinTest.test(app.javalin(), (server, client) -> {
                 try (Response response = client.get("/api/tracks")) {
@@ -217,7 +217,7 @@ class TestAlbumApi {
     @Test
     void matchesWuTangAmongRepeatedArtistSubstrings() throws Exception {
         reload("UPDATE artist SET name = 'Wu-Tang Clan'",
-                "UPDATE mediafile SET artist = 'Wu-Tang Clan', albumartist = 'Wu-Tang Clan'");
+                "UPDATE track SET artist = 'Wu-Tang Clan', albumartist = 'Wu-Tang Clan'");
         JavalinTest.test(app.javalin(), (server, client) -> {
             for (var endpoint : Map.of("tracks", "files", "albums", "albums",
                     "artists", "artists", "wordcloud/artists", "words").entrySet()) {
@@ -276,7 +276,7 @@ class TestAlbumApi {
                     "explicitCover=false", 2,
                     "countryCode=US", 2,
                     "artist=Guest%20Artist&genre=Rock", 0,
-                    "artist=Guest%20Artist&genre=Jazz", 1).entrySet()) {
+                    "artist=Artist%20One&genre=Jazz", 1).entrySet()) {
                 try (Response response = client.get("/api/albums?" + entry.getKey())) {
                     assertEquals(200, response.code());
                     JsonNode albums = json(response).get("albums");
@@ -340,19 +340,19 @@ class TestAlbumApi {
     }
 
     @Test
-    void joinsArtistGeographyThroughEachRelatedTrack() throws Exception {
+    void joinsAlbumGeographyThroughItsRelatedArtist() throws Exception {
         loadMultipleAlbums();
         reload("""
                 INSERT INTO artist (path, name, countrycode, regioncode, city, languagecode)
                 VALUES ('/data/Music/Guests', 'Guests', 'CA', 'CA-ON', 'Toronto', 'fr')
                 """,
-                "UPDATE mediafile SET artistpath = '/data/Music/Guests' WHERE title = 'Second Track'");
+                "UPDATE album SET artistid = 2 WHERE id = 1");
         JavalinTest.test(app.javalin(), (server, client) -> {
             for (var entry : Map.of(
-                    "countryCode=CA&genre=Jazz", 1,
-                    "countryCode=CA&genre=Rock", 0,
+                    "countryCode=CA&genre=Rock", 1,
+                    "countryCode=CA&genre=Jazz", 0,
                     "countryCode=US&artist=Guest%20Artist", 0,
-                    "countryCode=US&genre=Rock", 1,
+                    "countryCode=US&genre=Jazz", 1,
                     "regionCode=CA-ON&city=Toronto&languageCode=fr", 1).entrySet()) {
                 try (Response response = client.get("/api/albums?" + entry.getKey())) {
                     assertEquals(200, response.code());
@@ -417,9 +417,9 @@ class TestAlbumApi {
     }
 
     @Test
-    void handlesUnmatchedEmptyAndLegacyMetadata() throws Exception {
+    void keepsAlbumsLinkedByIdsAndHandlesAnEmptyAlbumTable() throws Exception {
         for (String sql : List.of("UPDATE album SET path = '/other/album'",
-                "DELETE FROM album", "DROP TABLE album")) {
+                "DELETE FROM album")) {
             reload(sql);
             JavalinTest.test(app.javalin(), (server, client) -> {
                 try (Response response = client.get("/api/albums")) {
@@ -427,22 +427,31 @@ class TestAlbumApi {
                     assertEquals(sql.startsWith("UPDATE") ? 1 : 0, json(response).get("albums").size());
                 }
                 try (Response response = client.get("/api/album?album=Album")) {
-                    assertEquals(404, response.code());
+                    assertEquals(sql.startsWith("UPDATE") ? 200 : 404, response.code());
+                    if (response.code() == 200) {
+                        assertEquals("/other/album", json(response).get("album").get("path").asText());
+                    }
                 }
                 for (String value : List.of("true", "false")) {
                     try (Response response = client.get("/api/tracks?explicitCover=" + value)) {
                         assertEquals(200, response.code());
-                        assertEquals(0, json(response).get("files").size());
+                        int expected = sql.startsWith("UPDATE") && "true".equals(value) ? 1 : 0;
+                        assertEquals(expected, json(response).get("files").size());
                     }
                     try (Response response = client.get("/api/random-track?explicitCover=" + value)) {
-                        assertEquals(404, response.code());
+                        int expected = sql.startsWith("UPDATE") && "true".equals(value) ? 200 : 404;
+                        assertEquals(expected, response.code());
                     }
                 }
                 try (Response response = client.get("/api/tracks")) {
                     assertEquals(200, response.code());
                     JsonNode data = json(response);
                     assertEquals(1, data.get("files").size());
-                    assertTrue(data.get("album").isNull());
+                    if (sql.startsWith("UPDATE")) {
+                        assertEquals("/other/album", data.get("album").get("path").asText());
+                    } else {
+                        assertTrue(data.get("album").isNull());
+                    }
                 }
                 try (Response response = client.get("/api/artist?artist=Artist%20One")) {
                     assertEquals(200, response.code());

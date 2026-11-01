@@ -1,12 +1,11 @@
 package org.moongas.datatypes;
 
-/**
- * Track DTO returned by the /tracks endpoint (like mediascan.MediaFile but
- * with the addition of the artist geo data), mirroring the Python MediaFile
- * dataclass and its JSON field names.
- */
+/** Track DTO returned by the /tracks endpoint. */
 public record MediaFile(
+        int id,
         String path,
+        String albumPath,
+        String artistPath,
         int size,
         String format,
         String title,
@@ -14,7 +13,7 @@ public record MediaFile(
         String albumartist,
         String album,
         String genre,
-        int year,
+        Integer year,
         int duration,
         String countryCode,
         String regionCode,

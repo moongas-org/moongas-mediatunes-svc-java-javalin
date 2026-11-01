@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.nio.file.Files;
 
 public class TestDbConnection {
 
@@ -25,59 +26,38 @@ public class TestDbConnection {
     }
 
     @Test
-    void Test_Constructor_success() throws SQLException {
-        String dbUrl = getTestDbUrl("mediascan.db");
-        DbConnection conn = new DbConnection(dbUrl);
-        assertNotNull(conn);
+    void Test_Constructor_success() throws Exception {
+        Path dbFile = TestDbs.createApiTestDb();
+        try (DbConnection conn = new DbConnection("jdbc:sqlite:" + dbFile)) {
+            assertNotNull(conn);
+            assertEquals(true, conn.hasTable("track"));
+            assertEquals(true, conn.hasTable("album"));
+            assertEquals(true, conn.hasTable("artist"));
+        } finally {
+            Files.deleteIfExists(dbFile);
+        }
     }
 
     @Test
-    void Test_get_something() throws SQLException {
-        String dbUrl = getTestDbUrl("mediascan.db");
-        DbConnection conn = new DbConnection(dbUrl);
-        assertNotNull(conn);
-
-        //  WHERE status = ?
-        // 
-        String sqlQuery = "SELECT id, path, albumpath, artistpath, title, artist, albumartist, album, genre, year FROM mediafile where albumartist = \"Siouxsie And The Banshees\" and title = \"92°\";";
-
-        PreparedStatement pstmt = conn.prepareStatement(sqlQuery);
-
-        try (ResultSet rs = pstmt.executeQuery()) {
-            while (rs.next()) {
-                int id = rs.getInt("id");
-                String path = rs.getString("path");
-                assertEquals("/data/MusicOther/Siouxsie And The Banshees/Tinderbox [1986]/07 - 92 degrees.mp3", path);
-                String albumpath = rs.getString("albumpath");
-                assertEquals("/data/MusicOther/Siouxsie And The Banshees/Tinderbox [1986]", albumpath);
-                String artistpath = rs.getString("artistpath");
-                assertEquals("/data/MusicOther/Siouxsie And The Banshees", artistpath);
-                String title = rs.getString("title");
-                assertEquals("92°", title);
-                String artist = rs.getString("artist");
-                assertEquals("Siouxsie And The Banshees", artist);
-                String albumartist = rs.getString("albumartist");
-                assertEquals("Siouxsie And The Banshees", albumartist);
-                String album = rs.getString("album");
-                assertEquals("Tinderbox", album);
-                String genre = rs.getString("genre");
-                assertEquals("Alternative Rock", genre);
-                int year = rs.getInt("year");
-                assertEquals(1986, year);
-
-                System.out.println("id: " + id 
-                + " | path: " + path 
-                + " | albumpath " + albumpath 
-                + " | artistpath: " + artistpath 
-                + " | title: " + title 
-                + " | artist: " + artist
-                + " | albumartist: " + albumartist
-                + " | album: " + album
-                + " | genre: " + genre
-                + " | year: " + year);
-                System.out.println();
+    void Test_get_track_with_joined_ids() throws Exception {
+        Path dbFile = TestDbs.createApiTestDb();
+        try (DbConnection conn = new DbConnection("jdbc:sqlite:" + dbFile);
+                PreparedStatement stmt = conn.prepareStatement("""
+                        SELECT track.id, track.path, album.path AS album_path, artist.path AS artist_path
+                        FROM track
+                        LEFT JOIN album ON track.albumid = album.id
+                        LEFT JOIN artist ON track.artistid = artist.id
+                        WHERE track.id = ?
+                        """)) {
+            stmt.setInt(1, 1);
+            try (ResultSet rs = stmt.executeQuery()) {
+                assertEquals(true, rs.next());
+                assertEquals(TestDbs.TRACK_ONE_PATH, rs.getString("path"));
+                assertEquals("/data/Music/A/Artist One/Album [2000]", rs.getString("album_path"));
+                assertEquals(TestDbs.ARTIST_ONE_PATH, rs.getString("artist_path"));
             }
+        } finally {
+            Files.deleteIfExists(dbFile);
         }
-
     }
 }
