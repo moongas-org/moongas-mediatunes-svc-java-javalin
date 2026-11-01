@@ -53,23 +53,6 @@ public class TestAppInit {
     }
 
     @Test
-    void Test_missing_mediafile_table_fails() throws IOException, SQLException {
-        Path dbFile = TestDbs.createApiTestDb();
-        try {
-            try (var conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
-                    var stmt = conn.createStatement()) {
-                stmt.execute("DROP TABLE mediafile");
-            }
-            MediatunesServiceConfig config = TestDbs.testConfig(dbFile);
-            IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                    () -> MoonGasServer.createApp(config));
-            assertTrue(ex.getMessage().contains("mediafile"));
-        } finally {
-            Files.deleteIfExists(dbFile);
-        }
-    }
-
-    @Test
     void Test_album_table_is_required() throws IOException, SQLException {
         Path dbFile = TestDbs.tempDbPath();
         try {

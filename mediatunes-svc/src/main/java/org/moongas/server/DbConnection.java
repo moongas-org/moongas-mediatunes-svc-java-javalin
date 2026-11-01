@@ -41,8 +41,12 @@ public class DbConnection implements AutoCloseable {
     }
 
     public boolean hasTable(String tableName) throws SQLException {
-        try (ResultSet rs = conn.getMetaData().getTables(null, null, tableName, null)) {
-            return rs.next();
+        try (PreparedStatement stmt = conn.prepareStatement(
+                "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")) {
+            stmt.setString(1, tableName);
+            try (ResultSet rs = stmt.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 

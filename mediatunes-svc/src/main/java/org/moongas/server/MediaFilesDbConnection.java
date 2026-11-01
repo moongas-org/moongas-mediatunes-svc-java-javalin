@@ -18,11 +18,15 @@ import java.util.Set;
 
 import org.moongas.config.MediatunesServiceConfig;
 import org.moongas.datatypes.MediaFile;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Loads mediascan tracks, albums, artists, and media files at startup.
  */
 public class MediaFilesDbConnection {
+
+    private static final Logger logger = LoggerFactory.getLogger(MediaFilesDbConnection.class);
 
     public record TrackRow(
             int id,
@@ -89,7 +93,7 @@ public class MediaFilesDbConnection {
         this.config = config;
 
         List<String> missingTables = new ArrayList<>();
-        for (String table : List.of("track", "artist", "album", "mediafile")) {
+        for (String table : List.of("track", "artist", "album")) {
             if (!conn.hasTable(table)) {
                 missingTables.add(table);
             }
@@ -193,16 +197,20 @@ public class MediaFilesDbConnection {
         }
 
         mediaFiles = new ArrayList<>();
-        try (Statement stmt = conn.createStatement();
-                ResultSet rs = stmt.executeQuery("SELECT * FROM mediafile")) {
-            ResultSetMetaData metadata = rs.getMetaData();
-            while (rs.next()) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                for (int i = 1; i <= metadata.getColumnCount(); i++) {
-                    row.put(metadata.getColumnLabel(i), rs.getObject(i));
+        if (conn.hasTable("mediafile")) {
+            try (Statement stmt = conn.createStatement();
+                    ResultSet rs = stmt.executeQuery("SELECT * FROM mediafile")) {
+                ResultSetMetaData metadata = rs.getMetaData();
+                while (rs.next()) {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    for (int i = 1; i <= metadata.getColumnCount(); i++) {
+                        row.put(metadata.getColumnLabel(i), rs.getObject(i));
+                    }
+                    mediaFiles.add(row);
                 }
-                mediaFiles.add(row);
             }
+        } else {
+            logger.warn("Database has no 'mediafile' table; mediafile requests will return no entries.");
         }
 
         countryCodeNameMap = StaticJsonData.countryCodeNameMap();
