@@ -80,6 +80,31 @@ public class TestAppInit {
             try (MoonGasServer.MediatunesApp app = MoonGasServer.createApp(TestDbs.testConfig(dbFile))) {
                 assertEquals(1, app.mediaFilesDb().getJoinedTracks().size());
                 assertTrue(app.mediaFilesDb().getMediaFilesForTrack(1).isEmpty());
+                assertEquals(2, app.mediaFilesDb().getTrackStreamingForTrack(1).size());
+            }
+        } finally {
+            Files.deleteIfExists(dbFile);
+        }
+    }
+
+    @Test
+    void Test_trackstreaming_table_is_optional() throws Exception {
+        Path dbFile = TestDbs.createApiTestDb();
+        try {
+            try (var conn = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
+                    var stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE trackstreaming");
+            }
+            try (MoonGasServer.MediatunesApp app = MoonGasServer.createApp(TestDbs.testConfig(dbFile))) {
+                assertEquals(1, app.mediaFilesDb().getJoinedTracks().size());
+                assertEquals(1, app.mediaFilesDb().getMediaFilesForTrack(1).size());
+                assertTrue(app.mediaFilesDb().getTrackStreamingForTrack(1).isEmpty());
+                io.javalin.testtools.JavalinTest.test(app.javalin(), (server, client) -> {
+                    try (var response = client.get("/api/trackstreaming?trackid=1")) {
+                        assertEquals(200, response.code());
+                        assertEquals("{\"trackstreaming\":[]}", response.body().string());
+                    }
+                });
             }
         } finally {
             Files.deleteIfExists(dbFile);

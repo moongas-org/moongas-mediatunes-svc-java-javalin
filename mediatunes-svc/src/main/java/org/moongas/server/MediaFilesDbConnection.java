@@ -22,7 +22,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Loads mediascan tracks, albums, artists, and media files at startup.
+ * Loads mediascan tracks, albums, artists, media files, and streaming entries at startup.
  */
 public class MediaFilesDbConnection {
 
@@ -84,6 +84,7 @@ public class MediaFilesDbConnection {
     private final List<ArtistRow> artists;
     private final List<AlbumRow> albums;
     private final List<Map<String, Object>> mediaFiles;
+    private final List<Map<String, Object>> trackStreaming;
     private final Map<String, String> countryCodeNameMap;
     private final Map<String, String> regionCodeNameMap;
     private final Map<String, String> languageCodeNameMap;
@@ -196,26 +197,35 @@ public class MediaFilesDbConnection {
             }
         }
 
-        mediaFiles = new ArrayList<>();
-        if (conn.hasTable("mediafile")) {
+        mediaFiles = loadOptionalTable(conn, "mediafile");
+        trackStreaming = loadOptionalTable(conn, "trackstreaming");
+        logger.info("Successfully loaded {} tracks, {} artists, {} albums, {} mediafiles and {} trackstreaming entries from database.",
+                joinedTracks.size(), artists.size(), albums.size(), mediaFiles.size(), trackStreaming.size());
+
+        countryCodeNameMap = StaticJsonData.countryCodeNameMap();
+        regionCodeNameMap = StaticJsonData.regionCodeNameMap();
+        languageCodeNameMap = StaticJsonData.languageCodeNameMap();
+    }
+
+    private static List<Map<String, Object>> loadOptionalTable(DbConnection conn, String tableName)
+            throws SQLException {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        if (conn.hasTable(tableName)) {
             try (Statement stmt = conn.createStatement();
-                    ResultSet rs = stmt.executeQuery("SELECT * FROM mediafile")) {
+                    ResultSet rs = stmt.executeQuery("SELECT * FROM " + tableName)) {
                 ResultSetMetaData metadata = rs.getMetaData();
                 while (rs.next()) {
                     Map<String, Object> row = new LinkedHashMap<>();
                     for (int i = 1; i <= metadata.getColumnCount(); i++) {
                         row.put(metadata.getColumnLabel(i), rs.getObject(i));
                     }
-                    mediaFiles.add(row);
+                    rows.add(row);
                 }
             }
         } else {
-            logger.warn("Database has no 'mediafile' table; mediafile requests will return no entries.");
+            logger.warn("Database has no '{}' table; {} requests will return no entries.", tableName, tableName);
         }
-
-        countryCodeNameMap = StaticJsonData.countryCodeNameMap();
-        regionCodeNameMap = StaticJsonData.regionCodeNameMap();
-        languageCodeNameMap = StaticJsonData.languageCodeNameMap();
+        return rows;
     }
 
     private static Integer getInteger(ResultSet rs, String column) throws SQLException {
@@ -248,7 +258,15 @@ public class MediaFilesDbConnection {
     }
 
     public List<Map<String, Object>> getMediaFilesForTrack(int trackId) {
-        return mediaFiles.stream()
+        return rowsForTrack(mediaFiles, trackId);
+    }
+
+    public List<Map<String, Object>> getTrackStreamingForTrack(int trackId) {
+        return rowsForTrack(trackStreaming, trackId);
+    }
+
+    private static List<Map<String, Object>> rowsForTrack(List<Map<String, Object>> rows, int trackId) {
+        return rows.stream()
                 .filter(row -> row.get("trackid") instanceof Number id && id.intValue() == trackId)
                 .toList();
     }

@@ -104,6 +104,68 @@ public class TestApi {
     }
 
     @Test
+    void Test_api_trackstreaming() {
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (String query : List.of("?trackid=1", "?trackid=1&genre=Jazz&maxResults=1")) {
+                try (Response response = client.get("/api/trackstreaming" + query)) {
+                    assertEquals(200, response.code());
+                    assertEquals(MAPPER.readTree("""
+                            {"trackstreaming": [
+                                {"trackid": 1, "streamingservice": "spotify", "streamingtrackid": "spotify-track-1"},
+                                {"trackid": 1, "streamingservice": "youtube", "streamingtrackid": "youtube-track-1"}
+                            ]}
+                            """), json(response));
+                }
+            }
+            try (Response response = client.get("/api/trackstreaming?trackid=2")) {
+                assertEquals(200, response.code());
+                assertEquals(MAPPER.readTree("""
+                        {"trackstreaming": [
+                            {"trackid": 2, "streamingservice": "spotify", "streamingtrackid": "spotify-track-2"}
+                        ]}
+                        """), json(response));
+            }
+            for (int trackId : List.of(0, -1, 999)) {
+                try (Response response = client.get("/api/trackstreaming?trackid=" + trackId)) {
+                    assertEquals(200, response.code());
+                    assertEquals(MAPPER.readTree("{\"trackstreaming\": []}"), json(response));
+                }
+            }
+        });
+    }
+
+    @Test
+    void trackLookupEndpointsRequireIntegerTrackId() {
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (String endpoint : List.of("mediafiles", "trackstreaming")) {
+                for (String query : List.of("", "?trackid=", "?trackid=nope",
+                        "?trackid=1.5", "?trackid=2147483648", "?trackid[]=1")) {
+                    try (Response response = client.get("/api/" + endpoint + query)) {
+                        assertEquals(400, response.code(), endpoint + query);
+                    }
+                }
+            }
+        });
+    }
+
+    @Test
+    void trackStreamingUsesConfiguredUrlPrefix() throws Exception {
+        app.close();
+        MediatunesServiceConfig config = TestDbs.testConfig(dbFile);
+        config.serverConfig.urlPrefix = "/custom";
+        app = MoonGasServer.createApp(config);
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            try (Response response = client.get("/custom/trackstreaming?trackid=1")) {
+                assertEquals(200, response.code());
+                assertEquals(2, json(response).get("trackstreaming").size());
+            }
+            try (Response response = client.get("/api/trackstreaming?trackid=1")) {
+                assertEquals(404, response.code());
+            }
+        });
+    }
+
+    @Test
     void Test_api_tracks_filtered() {
         JavalinTest.test(app.javalin(), (server, client) -> {
             try (Response resp = client.get("/api/tracks?genre=Jazz")) {

@@ -75,6 +75,13 @@ public final class TestDbs {
                     size INTEGER
                 )
                 """);
+        conn.createStatement().execute("""
+                CREATE TABLE trackstreaming (
+                    trackid INTEGER NOT NULL,
+                    streamingservice TEXT NOT NULL,
+                    streamingtrackid TEXT NOT NULL
+                )
+                """);
     }
 
     public static void insertArtistOne(Connection conn) throws SQLException {
@@ -133,6 +140,14 @@ public final class TestDbs {
             insertArtistOne(conn);
             insertTrackOne(conn);
             insertAlbumOne(conn);
+            try (var stmt = conn.createStatement()) {
+                stmt.execute("""
+                        INSERT INTO trackstreaming (trackid, streamingservice, streamingtrackid) VALUES
+                            (1, 'spotify', 'spotify-track-1'),
+                            (1, 'youtube', 'youtube-track-1'),
+                            (2, 'spotify', 'spotify-track-2')
+                        """);
+            }
         }
         return dbFile;
     }

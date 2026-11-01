@@ -19,6 +19,7 @@ import org.moongas.datatypes.MediaFile;
 
 import io.javalin.Javalin;
 import io.javalin.http.BadRequestResponse;
+import io.javalin.http.Context;
 import io.javalin.http.NotFoundResponse;
 
 /**
@@ -113,17 +114,11 @@ public class ApiRoutes {
         });
 
         app.get(p + "/mediafiles", ctx -> {
-            String trackIdValue = ctx.queryParam("trackid");
-            if (trackIdValue == null) {
-                throw new BadRequestResponse("A trackid query parameter is required.");
-            }
-            int trackId;
-            try {
-                trackId = Integer.parseInt(trackIdValue);
-            } catch (NumberFormatException e) {
-                throw new BadRequestResponse("trackid must be an integer.");
-            }
-            ctx.json(Map.of("mediafiles", db.getMediaFilesForTrack(trackId)));
+            ctx.json(Map.of("mediafiles", db.getMediaFilesForTrack(requiredTrackId(ctx))));
+        });
+
+        app.get(p + "/trackstreaming", ctx -> {
+            ctx.json(Map.of("trackstreaming", db.getTrackStreamingForTrack(requiredTrackId(ctx))));
         });
 
         app.get(p + "/artists", ctx -> {
@@ -249,6 +244,18 @@ public class ApiRoutes {
             body.put("languageCode", mediaFile.languageCode());
             ctx.json(body);
         });
+    }
+
+    private static int requiredTrackId(Context ctx) {
+        String value = ctx.queryParam("trackid");
+        if (value == null) {
+            throw new BadRequestResponse("A trackid query parameter is required.");
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new BadRequestResponse("trackid must be an integer.");
+        }
     }
 
     private static Map<String, Object> albumJson(MediaFilesDbConnection.AlbumRow album) {

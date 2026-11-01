@@ -90,9 +90,21 @@ match the filters; its `album` and year filters still refer to track tags.
 It returns `id`, `path`, `name`, `year` and boolean `explicitCover`.
 The mediascan database must contain `track`, `album` and `artist` tables;
 `track.artistid` and `track.albumid` reference `artist.id` and `album.id`,
-and `album.artistid` references `artist.id`. The `mediafile` table is optional;
-when present, `GET /api/mediafiles?trackid=<id>` returns its raw rows for that
-track.
+and `album.artistid` references `artist.id`. The `mediafile` and `trackstreaming`
+tables are optional.
+
+## Track playback sources
+
+`GET /api/mediafiles?trackid=<id>` returns `{"mediafiles": [...]}` containing
+raw `mediafile` rows for that track.
+`GET /api/trackstreaming?trackid=<id>` returns `{"trackstreaming": [...]}`
+containing raw `trackstreaming` rows, including `trackid`, `streamingservice`
+and `streamingtrackid`. Both endpoints use the configured API URL prefix.
+
+These tables are loaded at startup. Only `trackid` is used to filter rows;
+other query filters and result limits do not apply. Missing or non-integer
+`trackid` values return HTTP 400. Unmatched IDs, empty tables and absent optional
+tables return an empty array. A missing optional table produces a startup warning.
 
 ## Track queries
 
