@@ -88,10 +88,11 @@ through the track's related album ID.
 Like the Python service, `GET /api/album` selects the first album whose tracks
 match the filters; its `album` and year filters still refer to track tags.
 It returns `id`, `path`, `name`, `year` and boolean `explicitCover`.
-The mediascan database must contain `track`, `album`, `artist` and `mediafile` tables;
+The mediascan database must contain `track`, `album` and `artist` tables;
 `track.artistid` and `track.albumid` reference `artist.id` and `album.id`,
-and `album.artistid` references `artist.id`. `GET /api/mediafiles?trackid=<id>`
-returns the raw mediafile rows for that track.
+and `album.artistid` references `artist.id`. The `mediafile` table is optional;
+when present, `GET /api/mediafiles?trackid=<id>` returns its raw rows for that
+track.
 
 ## Track queries
 

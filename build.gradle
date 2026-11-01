@@ -3,7 +3,7 @@ subprojects {
     apply plugin: 'java' // Registers standard Java compilation tasks
 
     group = 'org.moongas'
-    version = '1.0.0'
+    version = '1.2.7'
 
     java {
         // Automatically manages and enforces the required JDK version
