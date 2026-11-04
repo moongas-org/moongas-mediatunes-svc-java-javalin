@@ -79,7 +79,8 @@ public final class TestDbs {
                 CREATE TABLE trackstreaming (
                     trackid INTEGER NOT NULL,
                     streamingservice TEXT NOT NULL,
-                    streamingtrackid TEXT NOT NULL
+                    streamingtrackid TEXT NOT NULL,
+                    streamingtrackurl TEXT
                 )
                 """);
     }
@@ -142,10 +143,14 @@ public final class TestDbs {
             insertAlbumOne(conn);
             try (var stmt = conn.createStatement()) {
                 stmt.execute("""
-                        INSERT INTO trackstreaming (trackid, streamingservice, streamingtrackid) VALUES
-                            (1, 'spotify', 'spotify-track-1'),
-                            (1, 'youtube', 'youtube-track-1'),
-                            (2, 'spotify', 'spotify-track-2')
+                        INSERT INTO trackstreaming
+                            (trackid, streamingservice, streamingtrackid, streamingtrackurl) VALUES
+                            (1, 'spotify', 'spotify-track-1',
+                             'https://open.spotify.com/track/spotify-track-1'),
+                            (1, 'youtube', 'youtube-track-1',
+                             'https://youtube.com/watch?v=youtube-track-1'),
+                            (2, 'spotify', 'spotify-track-2',
+                             'https://open.spotify.com/track/spotify-track-2')
                         """);
             }
         }

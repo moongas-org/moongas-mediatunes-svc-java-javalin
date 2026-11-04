@@ -111,8 +111,12 @@ public class TestApi {
                     assertEquals(200, response.code());
                     assertEquals(MAPPER.readTree("""
                             {"trackstreaming": [
-                                {"trackid": 1, "streamingservice": "spotify", "streamingtrackid": "spotify-track-1"},
-                                {"trackid": 1, "streamingservice": "youtube", "streamingtrackid": "youtube-track-1"}
+                                {"trackid": 1, "streamingservice": "spotify", "streamingtrackid": "spotify-track-1",
+                                 "streamingtrackurl": "https://open.spotify.com/track/spotify-track-1",
+                                 "streaming_track_url": "https://open.spotify.com/track/spotify-track-1"},
+                                {"trackid": 1, "streamingservice": "youtube", "streamingtrackid": "youtube-track-1",
+                                 "streamingtrackurl": "https://youtube.com/watch?v=youtube-track-1",
+                                 "streaming_track_url": "https://youtube.com/watch?v=youtube-track-1"}
                             ]}
                             """), json(response));
                 }
@@ -121,7 +125,9 @@ public class TestApi {
                 assertEquals(200, response.code());
                 assertEquals(MAPPER.readTree("""
                         {"trackstreaming": [
-                            {"trackid": 2, "streamingservice": "spotify", "streamingtrackid": "spotify-track-2"}
+                            {"trackid": 2, "streamingservice": "spotify", "streamingtrackid": "spotify-track-2",
+                             "streamingtrackurl": "https://open.spotify.com/track/spotify-track-2",
+                             "streaming_track_url": "https://open.spotify.com/track/spotify-track-2"}
                         ]}
                         """), json(response));
             }
@@ -174,6 +180,50 @@ public class TestApi {
                 assertEquals(0, data.get("files").size());
                 assertEquals("", data.get("coverPath").asText());
                 assertTrue(data.get("album").isNull());
+            }
+        });
+    }
+
+    @Test
+    void filtersTracksBySpotifyPresence() {
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (String value : List.of("true", "1")) {
+                try (Response response = client.get("/api/tracks?hasspotify=" + value)) {
+                    assertEquals(200, response.code());
+                    JsonNode data = json(response);
+                    assertEquals(1, data.get("files").size());
+                    assertTrue(data.get("files").get(0).get("hasspotify").asBoolean());
+                }
+            }
+            for (String value : List.of("false", "0")) {
+                try (Response response = client.get("/api/tracks?hasspotify=" + value)) {
+                    assertEquals(200, response.code());
+                    JsonNode data = json(response);
+                    assertEquals(0, data.get("files").size());
+                    assertTrue(data.get("album").isNull());
+                }
+            }
+            try (Response response = client.get("/api/album?hasspotify=true")) {
+                assertEquals(200, response.code());
+            }
+            try (Response response = client.get("/api/random-track?hasspotify=true")) {
+                assertEquals(200, response.code());
+            }
+            try (Response response = client.get("/api/random-track?hasspotify=false")) {
+                assertEquals(404, response.code());
+            }
+        });
+    }
+
+    @Test
+    void invalidSpotifyPresenceFilterReturnsBadRequest() {
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (String query : List.of("?hasspotify=", "?hasspotify=yes")) {
+                for (String endpoint : List.of("tracks", "album", "random-track")) {
+                    try (Response response = client.get("/api/" + endpoint + query)) {
+                        assertEquals(400, response.code());
+                    }
+                }
             }
         });
     }

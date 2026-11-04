@@ -99,7 +99,9 @@ tables are optional.
 raw `mediafile` rows for that track.
 `GET /api/trackstreaming?trackid=<id>` returns `{"trackstreaming": [...]}`
 containing raw `trackstreaming` rows, including `trackid`, `streamingservice`
-and `streamingtrackid`. Both endpoints use the configured API URL prefix.
+and `streamingtrackid`. When present, `streamingtrackurl` is also exposed as
+`streaming_track_url` to match the Python service response. Both endpoints use
+the configured API URL prefix.
 
 These tables are loaded at startup. Only `trackid` is used to filter rows;
 other query filters and result limits do not apply. Missing or non-integer
@@ -118,6 +120,13 @@ matching track (before the result limit) belongs to the same album,
 `album` contains its metadata in the same shape as `/api/album`
 (`id`, `path`, `name`, `year`, `explicitCover`). Otherwise, or when metadata is
 missing, it is `null`. At most one album lookup is performed per request.
+
+`/api/tracks`, `/api/album`, and `/api/random-track` accept
+`hasspotify=true` or `hasspotify=false` (also `1` or `0`, case-insensitive) to
+filter tracks by whether they have a Spotify streaming entry. The filter is
+applied before track limits or random selection. Omitting it includes both
+groups; empty or invalid values return HTTP 400. Track objects expose the
+`hasspotify` boolean.
 
 ## Media file requests
 

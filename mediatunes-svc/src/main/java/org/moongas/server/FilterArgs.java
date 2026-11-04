@@ -15,7 +15,8 @@ import io.javalin.http.Context;
  * Filter query arguments, parsed like the Python get_request_args().
  * List-type args are repeatable and also accept the "[]" suffix
  * (e.g. ?genre=Rock&amp;genre=Pop or ?genre[]=Rock); values match
- * case-insensitive substrings. Scalar args are minYear, maxYear, sort and explicitCover.
+ * case-insensitive substrings. Scalar args are minYear, maxYear, sort,
+ * explicitCover and hasspotify.
  */
 public record FilterArgs(
         List<String> genre,
@@ -31,7 +32,8 @@ public record FilterArgs(
         Integer minYear,
         Integer maxYear,
         String sort,
-        Boolean explicitCover) {
+        Boolean explicitCover,
+        Boolean hasspotify) {
 
     public static FilterArgs from(Context ctx) {
         return new FilterArgs(
@@ -48,7 +50,8 @@ public record FilterArgs(
                 intArg(ctx, "minYear"),
                 intArg(ctx, "maxYear"),
                 ctx.queryParam("sort"),
-                booleanArg(ctx, "explicitCover"));
+                booleanArg(ctx, "explicitCover"),
+                booleanArg(ctx, "hasspotify"));
     }
 
     private static Boolean booleanArg(Context ctx, String name) {
@@ -105,7 +108,8 @@ public record FilterArgs(
             }
         }
         return new FilterArgs(genre, List.copyOf(expanded), albumartist, album, title, year,
-                countryCode, regionCode, city, languageCode, minYear, maxYear, sort, explicitCover);
+                countryCode, regionCode, city, languageCode, minYear, maxYear, sort,
+                explicitCover, hasspotify);
     }
 
     private static boolean lacksAnySubstringIgnoreCase(String value, List<String> allowed) {
@@ -125,6 +129,9 @@ public record FilterArgs(
     }
 
     public boolean matches(MediaFilesDbConnection.TrackRow row) {
+        if (hasspotify != null && hasspotify != row.hasspotify()) {
+            return false;
+        }
         int rowYear = row.year();
         if (minYear != null && rowYear < minYear) {
             return false;

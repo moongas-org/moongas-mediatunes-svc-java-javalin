@@ -43,7 +43,8 @@ public class MediaFilesDbConnection {
             String countryCode,
             String regionCode,
             String city,
-            String languageCode) {
+            String languageCode,
+            boolean hasspotify) {
 
         public int year() {
             return parseYear(yearStr);
@@ -52,7 +53,7 @@ public class MediaFilesDbConnection {
         public MediaFile toMediaFile() {
             return new MediaFile(id, path, albumPath, artistPath, 0, "mp3",
                     title, artist, albumartist, album, genre, optionalYear(yearStr),
-                    0, countryCode, regionCode, city, languageCode);
+                    0, countryCode, regionCode, city, languageCode, hasspotify);
         }
     }
 
@@ -105,6 +106,11 @@ public class MediaFilesDbConnection {
                     "Database is missing required table(s): " + missingTables);
         }
 
+        String hasSpotifyExpression = conn.hasTable("trackstreaming")
+                ? "EXISTS (SELECT 1 FROM trackstreaming "
+                        + "WHERE trackstreaming.trackid = track.id "
+                        + "AND lower(trackstreaming.streamingservice) = 'spotify')"
+                : "0";
         joinedTracks = new ArrayList<>();
         try (Statement stmt = conn.createStatement();
                 ResultSet rs = stmt.executeQuery("""
@@ -122,11 +128,12 @@ public class MediaFilesDbConnection {
                             artist.countrycode AS countrycode,
                             artist.regioncode AS regioncode,
                             artist.city AS city,
-                            artist.languagecode AS languagecode
+                            artist.languagecode AS languagecode,
+                            %s AS track_hasspotify
                         FROM track
                         LEFT JOIN artist ON track.artistid = artist.id
                         LEFT JOIN album ON track.albumid = album.id
-                        """)) {
+                        """.formatted(hasSpotifyExpression))) {
             while (rs.next()) {
                 joinedTracks.add(new TrackRow(
                         rs.getInt("track_id"),
@@ -143,7 +150,8 @@ public class MediaFilesDbConnection {
                         rs.getString("countrycode"),
                         rs.getString("regioncode"),
                         rs.getString("city"),
-                        rs.getString("languagecode")));
+                        rs.getString("languagecode"),
+                        rs.getInt("track_hasspotify") != 0));
             }
         }
 
@@ -262,7 +270,15 @@ public class MediaFilesDbConnection {
     }
 
     public List<Map<String, Object>> getTrackStreamingForTrack(int trackId) {
-        return rowsForTrack(trackStreaming, trackId);
+        return rowsForTrack(trackStreaming, trackId).stream()
+                .map(row -> {
+                    Map<String, Object> result = new LinkedHashMap<>(row);
+                    if (row.containsKey("streamingtrackurl")) {
+                        result.put("streaming_track_url", row.get("streamingtrackurl"));
+                    }
+                    return result;
+                })
+                .toList();
     }
 
     private static List<Map<String, Object>> rowsForTrack(List<Map<String, Object>> rows, int trackId) {

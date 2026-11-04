@@ -44,7 +44,9 @@ class TestMediaFilesDbConnection {
                 assertEquals(2, rows.size());
                 assertEquals("spotify", rows.get(0).get("streamingservice"));
                 assertEquals("spotify-track-1", rows.get(0).get("streamingtrackid"));
-                assertEquals(4, rows.get(0).size());
+                assertEquals(6, rows.get(0).size());
+                assertEquals("https://open.spotify.com/track/spotify-track-1",
+                        rows.get(0).get("streaming_track_url"));
                 assertTrue(rows.get(0).containsKey("note"));
                 assertNull(rows.get(0).get("note"));
                 var otherRows = db.getTrackStreamingForTrack(2);
@@ -78,7 +80,7 @@ class TestMediaFilesDbConnection {
         try (DbConnection conn = new DbConnection("jdbc:sqlite:" + dbFile)) {
             MediaFilesDbConnection db = new MediaFilesDbConnection(conn, TestDbs.testConfig(dbFile));
             FilterArgs args = new FilterArgs(null, null, java.util.List.of("Artist One"),
-                    null, null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null, null);
             assertEquals(2, db.filterTracks(args).size());
         } finally {
             Files.deleteIfExists(dbFile);

@@ -18,5 +18,6 @@ public record MediaFile(
         String countryCode,
         String regionCode,
         String city,
-        String languageCode) {
+        String languageCode,
+        boolean hasspotify) {
 }
