@@ -229,6 +229,63 @@ public class TestApi {
     }
 
     @Test
+    void filtersTracksByLocalMediaAndLyricsPresence() {
+        Map<String, Boolean> expectedFlags = Map.of(
+                "hasspotify", true,
+                "hasmedia", true,
+                "haslyricstxt", false,
+                "haslyricslrc", true);
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (var entry : expectedFlags.entrySet()) {
+                for (String value : List.of("true", "1")) {
+                    try (Response response = client.get("/api/tracks?" + entry.getKey() + "=" + value)) {
+                        assertEquals(200, response.code());
+                        JsonNode files = json(response).get("files");
+                        assertEquals(entry.getValue() ? 1 : 0, files.size());
+                        if (!files.isEmpty()) {
+                            assertEquals(entry.getValue(), files.get(0).get(entry.getKey()).asBoolean());
+                        }
+                    }
+                }
+                for (String value : List.of("false", "0")) {
+                    try (Response response = client.get("/api/tracks?" + entry.getKey() + "=" + value)) {
+                        assertEquals(200, response.code());
+                        assertEquals(entry.getValue() ? 0 : 1, json(response).get("files").size());
+                    }
+                }
+            }
+            try (Response response = client.get("/api/tracks?hasmedia=true&haslyricstxt=true")) {
+                assertEquals(200, response.code());
+                assertEquals(0, json(response).get("files").size());
+            }
+            for (String endpoint : List.of("album", "artists", "random-track")) {
+                try (Response response = client.get("/api/" + endpoint + "?hasmedia=true")) {
+                    assertEquals(200, response.code(), endpoint);
+                }
+            }
+            try (Response response = client.get("/api/random-track?hasmedia=false")) {
+                assertEquals(404, response.code());
+            }
+        });
+    }
+
+    @Test
+    void invalidTrackPresenceFiltersReturnBadRequest() {
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            for (String flag : List.of("hasmedia", "haslyricstxt", "haslyricslrc")) {
+                for (String queryValue : List.of("", "yes")) {
+                    for (String endpoint : List.of("tracks", "album", "artists", "random-track")) {
+                        try (Response response = client.get(
+                                "/api/" + endpoint + "?" + flag + "=" + queryValue)) {
+                            assertEquals(400, response.code(), endpoint + " " + flag);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    @Test
     void expandsArtistArgumentsOnlyForTrackBasedFilters() {
         JavalinTest.test(app.javalin(), (server, client) -> {
             for (String query : List.of(

@@ -13,7 +13,7 @@ class TestFilterArgs {
         return new FilterArgs(List.of("Rock"), artists, List.of("U2, Muse"),
                 List.of("Album"), List.of("Track"), List.of("2000"),
                 List.of("US"), List.of("US-AL"), List.of("Huntsville"), List.of("en"),
-                1990, 2010, "year", true, null);
+                1990, 2010, "year", true, null, null, null, null);
     }
 
     @Test

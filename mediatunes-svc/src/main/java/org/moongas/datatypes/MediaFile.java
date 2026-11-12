@@ -19,5 +19,8 @@ public record MediaFile(
         String regionCode,
         String city,
         String languageCode,
-        boolean hasspotify) {
+        boolean hasspotify,
+        boolean hasmedia,
+        boolean haslyricstxt,
+        boolean haslyricslrc) {
 }

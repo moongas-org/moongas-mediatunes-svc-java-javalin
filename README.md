@@ -88,10 +88,11 @@ through the track's related album ID.
 Like the Python service, `GET /api/album` selects the first album whose tracks
 match the filters; its `album` and year filters still refer to track tags.
 It returns `id`, `path`, `name`, `year` and boolean `explicitCover`.
-The mediascan database must contain `track`, `album` and `artist` tables;
-`track.artistid` and `track.albumid` reference `artist.id` and `album.id`,
-and `album.artistid` references `artist.id`. The `mediafile` and `trackstreaming`
-tables are optional.
+The mediascan database must contain `track`, `album` and `artist` tables. The
+`track` table includes `hasmedia`, `haslyricstxt` and `haslyricslrc` boolean
+columns; `track.artistid` and `track.albumid` reference `artist.id` and
+`album.id`, and `album.artistid` references `artist.id`. The `mediafile` and
+`trackstreaming` tables are optional.
 
 ## Track playback sources
 
@@ -121,12 +122,13 @@ matching track (before the result limit) belongs to the same album,
 (`id`, `path`, `name`, `year`, `explicitCover`). Otherwise, or when metadata is
 missing, it is `null`. At most one album lookup is performed per request.
 
-`/api/tracks`, `/api/album`, and `/api/random-track` accept
-`hasspotify=true` or `hasspotify=false` (also `1` or `0`, case-insensitive) to
-filter tracks by whether they have a Spotify streaming entry. The filter is
-applied before track limits or random selection. Omitting it includes both
-groups; empty or invalid values return HTTP 400. Track objects expose the
-`hasspotify` boolean.
+`/api/tracks`, `/api/album`, `/api/artists`, and `/api/random-track` accept
+`hasspotify`, `hasmedia`, `haslyricstxt`, and `haslyricslrc` boolean filters
+(values `true`, `false`, `1`, or `0`, case-insensitive). They select tracks
+based on their Spotify entry, local media file, text lyrics, or LRC lyrics
+respectively. Filters are applied before track limits or random selection.
+Omitting a filter includes both groups; empty or invalid values return HTTP
+400. Track objects expose each of these boolean fields.
 
 ## Media file requests
 

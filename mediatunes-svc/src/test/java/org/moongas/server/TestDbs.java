@@ -42,7 +42,11 @@ public final class TestDbs {
                     albumartist TEXT,
                     album TEXT,
                     genre TEXT,
-                    year TEXT
+                    year TEXT,
+                    hasspotify BOOLEAN,
+                    hasmedia BOOLEAN,
+                    haslyricstxt BOOLEAN,
+                    haslyricslrc BOOLEAN
                 )
                 """);
         conn.createStatement().execute("""
@@ -93,9 +97,10 @@ public final class TestDbs {
 
     public static void insertTrackOne(Connection conn) throws SQLException {
         conn.createStatement().execute(
-                "INSERT INTO track (id, path, albumid, artistid, title, artist, albumartist, album, genre, year) "
+                "INSERT INTO track (id, path, albumid, artistid, title, artist, albumartist, album, genre, year, "
+                        + "hasspotify, hasmedia, haslyricstxt, haslyricslrc) "
                         + "VALUES (1, '" + TRACK_ONE_PATH + "', 1, 1, 'Track 1', "
-                        + "'Artist One', 'Artist One', 'Album', 'Rock', '2000')");
+                        + "'Artist One', 'Artist One', 'Album', 'Rock', '2000', 1, 1, 0, 1)");
     }
 
     public static void insertAlbumOne(Connection conn) throws SQLException {
@@ -116,14 +121,16 @@ public final class TestDbs {
                     """);
             stmt.execute("""
                     INSERT INTO track
-                        (id, path, albumid, artistid, title, artist, albumartist, album, genre, year)
+                        (id, path, albumid, artistid, title, artist, albumartist, album, genre, year,
+                         hasspotify, hasmedia, haslyricstxt, haslyricslrc)
                     VALUES
                         (2, '/data/Music/A/Artist One/Other [2000]/01.mp3',
                          2, 1,
-                         'Other Track', 'Artist One', '', 'Other', 'Jazz', '2000'),
+                         'Other Track', 'Artist One', '', 'Other', 'Jazz', '2000', 1, 0, 1, 0),
                         (3, '/data/Music/A/Artist One/Album [2000]/02.mp3',
                          1, 1,
-                         'Second Track', 'Guest Artist', 'Artist One', 'Album', 'Jazz', '2000')
+                         'Second Track', 'Guest Artist', 'Artist One', 'Album', 'Jazz', '2000',
+                         1, 1, 1, 1)
                     """);
             stmt.execute("""
                     INSERT INTO mediafile (id, trackid, path, size) VALUES

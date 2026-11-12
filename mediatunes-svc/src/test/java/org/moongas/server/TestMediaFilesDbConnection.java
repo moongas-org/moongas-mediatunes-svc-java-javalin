@@ -80,7 +80,8 @@ class TestMediaFilesDbConnection {
         try (DbConnection conn = new DbConnection("jdbc:sqlite:" + dbFile)) {
             MediaFilesDbConnection db = new MediaFilesDbConnection(conn, TestDbs.testConfig(dbFile));
             FilterArgs args = new FilterArgs(null, null, java.util.List.of("Artist One"),
-                    null, null, null, null, null, null, null, null, null, null, null, null);
+                    null, null, null, null, null, null, null, null, null, null, null,
+                    null, null, null, null);
             assertEquals(2, db.filterTracks(args).size());
         } finally {
             Files.deleteIfExists(dbFile);

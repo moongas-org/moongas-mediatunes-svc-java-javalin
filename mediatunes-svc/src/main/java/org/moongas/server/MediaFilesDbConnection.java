@@ -44,7 +44,10 @@ public class MediaFilesDbConnection {
             String regionCode,
             String city,
             String languageCode,
-            boolean hasspotify) {
+            boolean hasspotify,
+            boolean hasmedia,
+            boolean haslyricstxt,
+            boolean haslyricslrc) {
 
         public int year() {
             return parseYear(yearStr);
@@ -53,7 +56,8 @@ public class MediaFilesDbConnection {
         public MediaFile toMediaFile() {
             return new MediaFile(id, path, albumPath, artistPath, 0, "mp3",
                     title, artist, albumartist, album, genre, optionalYear(yearStr),
-                    0, countryCode, regionCode, city, languageCode, hasspotify);
+                    0, countryCode, regionCode, city, languageCode, hasspotify,
+                    hasmedia, haslyricstxt, haslyricslrc);
         }
     }
 
@@ -129,7 +133,10 @@ public class MediaFilesDbConnection {
                             artist.regioncode AS regioncode,
                             artist.city AS city,
                             artist.languagecode AS languagecode,
-                            %s AS track_hasspotify
+                            %s AS track_hasspotify,
+                            track.hasmedia AS track_hasmedia,
+                            track.haslyricstxt AS track_haslyricstxt,
+                            track.haslyricslrc AS track_haslyricslrc
                         FROM track
                         LEFT JOIN artist ON track.artistid = artist.id
                         LEFT JOIN album ON track.albumid = album.id
@@ -151,7 +158,10 @@ public class MediaFilesDbConnection {
                         rs.getString("regioncode"),
                         rs.getString("city"),
                         rs.getString("languagecode"),
-                        rs.getInt("track_hasspotify") != 0));
+                        rs.getInt("track_hasspotify") != 0,
+                        rs.getInt("track_hasmedia") != 0,
+                        rs.getInt("track_haslyricstxt") != 0,
+                        rs.getInt("track_haslyricslrc") != 0));
             }
         }
 
