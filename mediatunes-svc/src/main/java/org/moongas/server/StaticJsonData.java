@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.moongas.datatypes.LanguageNames;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,17 +31,21 @@ public class StaticJsonData {
     }
 
     public static Map<String, String> load(String filename) {
+        Map<String, String> data = load(filename, new TypeReference<Map<String, String>>() {});
+        return data != null ? data : Collections.emptyMap();
+    }
+
+    private static <T> T load(String filename, TypeReference<T> type) {
         String resourcePath = "/static/json_data/" + filename;
         try (InputStream in = StaticJsonData.class.getResourceAsStream(resourcePath)) {
             if (in == null) {
                 logger.error("Data file not found: {}", resourcePath);
-                return Collections.emptyMap();
+                return null;
             }
-            Map<String, String> data = MAPPER.readValue(in, new TypeReference<Map<String, String>>() {});
-            return data != null ? data : Collections.emptyMap();
+            return MAPPER.readValue(in, type);
         } catch (IOException e) {
             logger.error("Could not decode JSON from file {}: {}", resourcePath, e.getMessage());
-            return Collections.emptyMap();
+            return null;
         }
     }
 
@@ -52,8 +57,10 @@ public class StaticJsonData {
         return load("region_code_name_map.json");
     }
 
-    public static Map<String, String> languageCodeNameMap() {
-        return load("language_code_name_map.json");
+    public static Map<String, LanguageNames> languageCodeNameMap() {
+        Map<String, LanguageNames> data = load("language_code_name_map.json",
+                new TypeReference<Map<String, LanguageNames>>() {});
+        return data != null ? data : Collections.emptyMap();
     }
 
     /** Defensive copy helper for callers that mutate the returned map. */

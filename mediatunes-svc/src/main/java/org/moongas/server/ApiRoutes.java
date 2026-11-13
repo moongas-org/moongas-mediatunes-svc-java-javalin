@@ -15,6 +15,7 @@ import java.util.Map;
 import org.moongas.config.MediatunesServiceConfig;
 import org.moongas.datatypes.AlbumInfo;
 import org.moongas.datatypes.GeoItem;
+import org.moongas.datatypes.LanguageNames;
 import org.moongas.datatypes.MediaFile;
 
 import io.javalin.Javalin;
@@ -326,7 +327,7 @@ public class ApiRoutes {
     private List<GeoItem> artistGeoCounts(String kind) {
         Map<String, String> countryMap = db.getCountryCodeNameMap();
         Map<String, String> regionMap = db.getRegionCodeNameMap();
-        Map<String, String> languageMap = db.getLanguageCodeNameMap();
+        Map<String, LanguageNames> languageMap = db.getLanguageCodeNameMap();
 
         String name = "";
         Map<String, GeoItem> counts = new LinkedHashMap<>();
@@ -335,7 +336,7 @@ public class ApiRoutes {
             String rc = row.regionCode();
             String city = row.city();
             String lc = row.languageCode();
-            String value;
+            Object value;
             Map<String, String> criteria;
             switch (kind) {
                 case "countries" -> {
@@ -375,7 +376,8 @@ public class ApiRoutes {
                     criteria = Map.of("city", city, "regionCode", rc, "countryCode", cc);
                 }
             }
-            String uniqKey = value + "|" + criteria.toString();
+            String displayKey = value instanceof LanguageNames names ? names.nameEn() : value.toString();
+            String uniqKey = displayKey + "|" + criteria;
             GeoItem existing = counts.get(uniqKey);
             if (existing != null) {
                 counts.put(uniqKey, new GeoItem(name, value, criteria, existing.count() + 1));

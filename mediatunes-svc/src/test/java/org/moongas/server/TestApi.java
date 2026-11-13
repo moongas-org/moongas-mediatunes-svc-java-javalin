@@ -7,11 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 
 import org.moongas.config.MediatunesServiceConfig;
+import org.moongas.datatypes.LanguageNames;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -525,6 +527,57 @@ public class TestApi {
                 assertEquals(404, resp.code());
             }
         });
+    }
+
+    @Test
+    void languageMapAndArtistGeoIncludeLocalizedAndEnglishNames() throws Exception {
+        app.close();
+        try (var connection = DriverManager.getConnection("jdbc:sqlite:" + dbFile);
+                var statement = connection.prepareStatement(
+                        "INSERT INTO artist (path, name, countrycode, regioncode, city, languagecode) "
+                                + "VALUES (?, ?, 'FR', '', '', ?)")) {
+            for (String[] artist : List.of(
+                    new String[] {"/data/Music/Spanish", "Spanish Artist", "es"},
+                    new String[] {"/data/Music/French One", "French Artist One", "fr"},
+                    new String[] {"/data/Music/French Two", "French Artist Two", "fr"})) {
+                statement.setString(1, artist[0]);
+                statement.setString(2, artist[1]);
+                statement.setString(3, artist[2]);
+                statement.executeUpdate();
+            }
+        }
+        app = MoonGasServer.createApp(TestDbs.testConfig(dbFile));
+
+        assertEquals(183, StaticJsonData.languageCodeNameMap().size());
+        assertEquals(new LanguageNames("Español", "Spanish"),
+                StaticJsonData.languageCodeNameMap().get("es"));
+        assertEquals(new LanguageNames("日本語", "Japanese"),
+                StaticJsonData.languageCodeNameMap().get("ja"));
+
+        JavalinTest.test(app.javalin(), (server, client) -> {
+            try (Response response = client.get("/api/artist-geo/languages")) {
+                assertEquals(200, response.code());
+                JsonNode items = json(response).get("items");
+                assertEquals(3, items.size());
+                JsonNode french = findLanguageItem(items, "fr");
+                assertEquals("Français", french.get("value").get("name").asText());
+                assertEquals("French", french.get("value").get("nameEn").asText());
+                assertEquals(2, french.get("count").asInt());
+                JsonNode spanish = findLanguageItem(items, "es");
+                assertEquals("Español", spanish.get("value").get("name").asText());
+                assertEquals("Spanish", spanish.get("value").get("nameEn").asText());
+                assertEquals(1, spanish.get("count").asInt());
+            }
+        });
+    }
+
+    private static JsonNode findLanguageItem(JsonNode items, String languageCode) {
+        for (JsonNode item : items) {
+            if (languageCode.equals(item.get("criteria").get("languageCode").asText())) {
+                return item;
+            }
+        }
+        throw new AssertionError("No artist-geo item for language code " + languageCode);
     }
 
     @Test

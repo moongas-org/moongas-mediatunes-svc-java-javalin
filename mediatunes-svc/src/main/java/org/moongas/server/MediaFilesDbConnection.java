@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.moongas.config.MediatunesServiceConfig;
+import org.moongas.datatypes.LanguageNames;
 import org.moongas.datatypes.MediaFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,7 +93,7 @@ public class MediaFilesDbConnection {
     private final List<Map<String, Object>> trackStreaming;
     private final Map<String, String> countryCodeNameMap;
     private final Map<String, String> regionCodeNameMap;
-    private final Map<String, String> languageCodeNameMap;
+    private final Map<String, LanguageNames> languageCodeNameMap;
 
     public MediaFilesDbConnection(DbConnection conn, MediatunesServiceConfig config)
             throws SQLException, IOException {
@@ -305,7 +306,7 @@ public class MediaFilesDbConnection {
         return regionCodeNameMap;
     }
 
-    public Map<String, String> getLanguageCodeNameMap() {
+    public Map<String, LanguageNames> getLanguageCodeNameMap() {
         return languageCodeNameMap;
     }
 
